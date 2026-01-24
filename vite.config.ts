@@ -1,6 +1,12 @@
+
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+
+// Fix: __dirname is not available in ES modules, polyfill it using import.meta.url
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -11,7 +17,8 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        // Ensure process.env.API_KEY is defined for the frontend
+        'process.env.API_KEY': JSON.stringify(env.API_KEY || env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
       },
       resolve: {
