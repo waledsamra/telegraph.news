@@ -2582,7 +2582,7 @@ function AuthScreen({ onLogin, serverError }) {
                 className="w-full pr-8 pl-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white dir-ltr text-right" 
                 placeholder="username" 
                 value={formData.username} 
-                onChange={e => setFormData({ ...formData, username: e.target.value.replace(/[^a-zA-Z0-9\s]/g, '').toLowerCase() })} 
+                onChange={e => setFormData({ ...formData, username: e.target.value.replace(/[^a-zA-Z0-9\s.]/g, '').toLowerCase() })} 
               />
             </div>
           </div>
