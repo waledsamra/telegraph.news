@@ -14,259 +14,42 @@ import {
   Loader2, RefreshCw, Hash, AlignLeft, Search as SearchIcon, Zap, Info, Palette
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
+import { GoogleGenAI } from "@google/genai";
 
-// --- Defaults ---
+// --- الإعدادات الافتراضية ---
 const DEFAULT_DEPARTMENTS = ['سياسة', 'اقتصاد', 'رياضة', 'فن وثقافة', 'حوادث', 'منوعات', 'تحقيقات', 'ديسك مركزي', 'عام'];
-const DEFAULT_STATUSES = ['نشرت', 'ديسك', 'مبيت'];
-const DEFAULT_DAILY_TARGET = 10;
-const DEFAULT_LOGO = "/logo.png"; 
-const DEFAULT_TICKER_SPEED = 25; 
-const DEFAULT_TICKER_FONT_SIZE = 18; 
 const PLATFORMS = ['موقع إلكتروني', 'فيسبوك', 'انستجرام', 'تيك توك', 'يوتيوب', 'أخرى'];
 
-// --- Activity Tracking Config ---
-const HEARTBEAT_INTERVAL = 15000; 
-const ONLINE_THRESHOLD = 45; 
-const IDLE_THRESHOLD = 60000; 
-
-// --- Theme Config ---
 const THEMES = {
-  blue: { name: 'أزرق (الافتراضي)', primary: 'bg-blue-800', hover: 'hover:bg-blue-900', text: 'text-blue-800', light: 'bg-blue-50', border: 'border-blue-200', ring: 'focus:ring-blue-500' },
-  red: { name: 'أحمر', primary: 'bg-red-800', hover: 'hover:bg-red-900', text: 'text-red-800', light: 'bg-red-50', border: 'border-red-200', ring: 'focus:ring-red-500' },
-  green: { name: 'أخضر', primary: 'bg-green-800', hover: 'hover:bg-green-900', text: 'text-green-800', light: 'bg-green-50', border: 'border-green-200', ring: 'focus:ring-green-500' },
-  purple: { name: 'بنفسجي', primary: 'bg-purple-800', hover: 'hover:bg-purple-900', text: 'text-purple-800', light: 'bg-purple-50', border: 'border-purple-200', ring: 'focus:ring-purple-500' },
-  slate: { name: 'رمادي رسمي', primary: 'bg-slate-800', hover: 'hover:bg-slate-900', text: 'text-slate-800', light: 'bg-slate-50', border: 'border-slate-200', ring: 'focus:ring-slate-500' },
+  blue: { name: 'أزرق', primary: 'bg-blue-800', hover: 'hover:bg-blue-900', text: 'text-blue-800', light: 'bg-blue-50', border: 'border-blue-200' },
+  red: { name: 'أحمر', primary: 'bg-red-800', hover: 'hover:bg-red-900', text: 'text-red-800', light: 'bg-red-50', border: 'border-red-200' },
+  green: { name: 'أخضر', primary: 'bg-green-800', hover: 'hover:bg-green-900', text: 'text-green-800', light: 'bg-green-50', border: 'border-green-200' },
 };
 
-// ... (تكملة الـ Helpers موجودة في الكود الأصلي)
-const formatDate = (dateString) => {
-  if (!dateString) return '-';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '-';
-  return date.toLocaleDateString('ar-EG');
-};
-
-const formatTime = (dateString) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
-  return date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-};
-
-const formatDuration = (minutes) => {
-    if (!minutes) return '0 دقيقة';
-    const h = Math.floor(minutes / 60);
-    const m = Math.floor(minutes % 60);
-    if (h > 0) return `${h} ساعة و ${m} دقيقة`;
-    return `${m} دقيقة`;
-};
-
-const formatDayName = (dateString) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('ar-EG', { weekday: 'long' });
-};
-
-const copyToClip = async (text) => {
-  if (!text) return;
-  try {
-    await navigator.clipboard.writeText(text);
-    alert("تم النسخ بنجاح");
-  } catch (err) {
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    textArea.style.position = "fixed"; 
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-      document.execCommand('copy');
-      alert("تم النسخ بنجاح");
-    } catch (err) {
-      alert("فشل النسخ يدوياً");
-    }
-    document.body.removeChild(textArea);
-  }
-};
-
-const escapeCsv = (text) => {
-    if (text === null || text === undefined) return "";
-    const stringText = String(text);
-    if (stringText.includes(",") || stringText.includes('"') || stringText.includes("\n")) {
-        return `"${stringText.replace(/"/g, '""')}"`;
-    }
-    return stringText;
-};
-
-const StatusBadge = ({ status }) => {
-  let styles = 'bg-gray-100 text-gray-700 border-blue-200';
-  let icon = null;
-
-  if (status === 'نشرت' || status === 'تم النشر') {
-      styles = 'bg-green-100 text-green-700 border-green-200';
-      icon = <CheckCircle className="h-4 w-4" />;
-  } else if (status === 'مبيت') {
-      styles = 'bg-orange-100 text-orange-700 border-orange-200';
-      icon = <Clock className="h-4 w-4" />;
-  } else if (status === 'ديسك') {
-      styles = 'bg-blue-100 text-blue-700 border-blue-200';
-      icon = <FileText className="h-4 w-4" />;
-  }
-
-  return (
-    <span className={`px-3 py-1 rounded-full text-xs font-bold border inline-flex items-center gap-1.5 ${styles}`}>
-      {icon}
-      {status}
-    </span>
-  );
-};
-
-const PlatformBadge = ({ platform }) => {
-    let icon = <Globe className="h-3 w-3" />;
-    let color = "bg-blue-50 text-blue-600 border-blue-100";
-    
-    if (platform === 'فيسبوك') {
-        icon = <span className="font-bold text-[10px]">FB</span>;
-        color = "bg-blue-100 text-blue-800 border-blue-200";
-    } else if (platform === 'انستجرام') {
-        icon = <span className="font-bold text-[10px]">IG</span>;
-        color = "bg-pink-50 text-pink-600 border-pink-200";
-    } else if (platform === 'تيك توك') {
-        icon = <span className="font-bold text-[10px]">TT</span>;
-        color = "bg-gray-800 text-white border-gray-600";
-    } else if (platform === 'يوتيوب') {
-         icon = <span className="font-bold text-[10px]">YT</span>;
-         color = "bg-red-50 text-red-600 border-red-200";
-    }
-
-    return (
-        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border inline-flex items-center gap-1 ${color}`}>
-            {icon} {platform}
-        </span>
-    );
-};
-
-const RatingDisplay = ({ rating, max = 5, color = 'text-orange-500' }) => (
-  <div className="flex items-center gap-1" title={`التقييم: ${rating}/${max}`}>
-    {[...Array(max)].map((_, i) => (
-      <Star 
-        key={i} 
-        className={`h-4 w-4 ${i < (rating || 0) ? `${color} fill-current` : 'text-gray-200'}`} 
-      />
-    ))}
-    <span className="text-xs text-gray-500 font-medium mr-1 hidden sm:inline">({rating || 0})</span>
-  </div>
-);
-
-const PerformanceBadge = ({ score, loading }) => {
-    if (loading) return <span className="flex items-center gap-1 text-[10px] bg-gray-100 px-2 py-1 rounded-full"><Loader2 className="animate-spin h-3 w-3"/> فحص...</span>;
-    if (score === null || score === undefined) return null;
-    
-    let color = "bg-red-100 text-red-700 border-red-200";
-    if (score >= 90) color = "bg-green-100 text-green-700 border-green-200";
-    else if (score >= 50) color = "bg-yellow-100 text-yellow-700 border-yellow-200";
-
-    return (
-        <span className={`px-2 py-1 rounded-full text-[10px] font-bold border inline-flex items-center gap-1 ${color}`} title="Google PageSpeed Score (Mobile)">
-            <Zap className="h-3 w-3" />
-            {score}%
-        </span>
-    );
-};
-
-const StatCard = ({ title, value, subtitle, icon: Icon, colorClass, onClick }) => (
-  <div 
-    onClick={onClick}
-    className={`bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between transition-all ${onClick ? 'cursor-pointer hover:shadow-md hover:border-orange-200 hover:scale-[1.02]' : ''}`}
-  >
+// --- المكونات الصغيرة ---
+const StatCard = ({ title, value, icon: Icon, colorClass }) => (
+  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
     <div>
-      <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-1">{title}</p>
+      <p className="text-xs text-slate-400 font-bold uppercase mb-1">{title}</p>
       <h3 className="text-2xl font-black text-slate-800">{value}</h3>
-      {subtitle && <p className="text-xs text-slate-500 font-medium mt-1">{subtitle}</p>}
     </div>
-    <div className={`p-3 rounded-xl bg-opacity-10 text-opacity-90 ${colorClass}`}>
+    <div className={`p-3 rounded-xl ${colorClass} bg-opacity-10 text-opacity-90`}>
       <Icon size={24} />
     </div>
   </div>
 );
 
-const SimpleBarChart = ({ data, colorFrom, colorTo, title, icon: Icon }) => {
-  const safeData = Array.isArray(data) ? data : [];
-  const max = Math.max(...safeData.map(d => d.value || 0)) || 5; 
-  
-  return (
-    <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-xl shadow-blue-900/5 h-full flex flex-col justify-between relative overflow-hidden min-h-[300px]">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent rounded-bl-full -z-0 opacity-50"></div>
-        <div className="flex items-center justify-between mb-6 relative z-10">
-           <div className="flex items-center gap-3">
-               <div className="p-3 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 shadow-sm">
-                   {Icon ? <Icon size={20} /> : <BarChart3 size={20} />}
-               </div>
-               <div><h4 className="text-lg font-bold text-slate-800 leading-tight">{title}</h4></div>
-           </div>
-        </div>
-        <div className="relative w-full h-[200px] flex items-end justify-center pb-4">
-           <div className="absolute inset-0 flex flex-col justify-between h-[180px] w-full z-0 pointer-events-none">
-              {[0, 1, 2, 3].map((_, i) => (<div key={i} className="w-full border-t border-dashed border-slate-100 h-0"></div>))}
-           </div>
-           <div className="flex items-end justify-between w-full h-[180px] z-10 px-2 gap-2">
-              {safeData.map((d, i) => {
-                  const val = d.value || 0;
-                  const heightPercent = (val / max) * 100;
-                  const isZero = val === 0;
-                  return (
-                      <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group/bar cursor-pointer">
-                          <div className={`mb-1 text-[10px] font-bold transition-all duration-300 ${val > 0 ? 'text-slate-600 opacity-100' : 'opacity-0 translate-y-2 group-hover/bar:opacity-100 group-hover/bar:translate-y-0'}`}>{val}</div>
-                          <div className="w-full max-w-[30px] rounded-t-lg relative overflow-hidden transition-all duration-700 ease-out group-hover/bar:scale-y-110 origin-bottom" style={{ height: `${isZero ? 2 : heightPercent}%`, background: isZero ? '#f1f5f9' : `linear-gradient(to top, ${colorFrom}, ${colorTo})`, minHeight: isZero ? '4px' : '0' }}></div>
-                          <div className="mt-2 text-[10px] font-bold text-slate-400 truncate w-full text-center">{d.label}</div>
-                      </div>
-                  )
-              })}
-           </div>
-        </div>
-    </div>
-  );
-};
-
-function LiveClock({ theme }) {
-  const [time, setTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <div className={`flex items-center gap-2 ${THEMES[theme].light} px-3 py-1.5 rounded-xl border ${THEMES[theme].border} shadow-sm mx-auto`}>
-      <Clock className={`h-4 w-4 ${THEMES[theme].text}`} />
-      <span className="text-lg font-black text-gray-800 tabular-nums tracking-wide">
-        {time.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-      </span>
-    </div>
-  );
-}
-
-// ... (باقي المكونات AssignmentCenter و JournalistDashboard و AdminDashboard)
-
-function AuthScreen({ onLogin, serverError }) {
+// --- شاشة تسجيل الدخول ---
+function AuthScreen({ onLogin }) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [joinExisting, setJoinExisting] = useState(false);
-  const [formData, setFormData] = useState({ 
-    username: '', 
-    password: '',
-    name: '',
-    agencyId: ''
-  });
+  const [formData, setFormData] = useState({ username: '', password: '', name: '', agencyId: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true); setError('');
-    
     try {
       const { data: users, error: dbError } = await supabase
         .from('users')
@@ -274,203 +57,348 @@ function AuthScreen({ onLogin, serverError }) {
         .eq('username', formData.username.toLowerCase())
         .eq('password', formData.password);
 
-      if (dbError) {
-        console.error("Supabase Error:", dbError);
-        throw new Error(`خطأ في قاعدة البيانات: ${dbError.message}`);
-      }
+      if (dbError) throw dbError;
 
       if (users && users.length > 0) {
         const user = users[0];
-        if (!user.approved) { 
-           setError('لم تتم الموافقة على حسابك بعد من قبل مدير المؤسسة'); 
-        } else { 
-           onLogin(user); 
+        if (!user.approved) {
+          setError('حسابك قيد المراجعة من قبل الإدارة');
+        } else {
+          onLogin(user);
         }
-      } else { 
-        setError('بيانات الدخول غير صحيحة'); 
+      } else {
+        setError('بيانات الدخول غير صحيحة');
       }
-    } catch (err) { 
-        console.error(err);
-        setError(err.message.includes('relation "users" does not exist') 
-          ? 'تنبيه: جدول المستخدمين غير موجود. يرجى تشغيل أوامر SQL أولاً.' 
-          : 'فشل الاتصال بقاعدة البيانات. تأكد من تشغيل أوامر SQL.'); 
-    } finally { 
-        setLoading(false); 
+    } catch (err) {
+      console.error(err);
+      setError('فشل الاتصال بقاعدة البيانات. تأكد من تشغيل أوامر SQL في Supabase.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRegister = async (e) => {
-      e.preventDefault();
-      if(!formData.name || !formData.username || !formData.password) return setError("الرجاء ملء جميع البيانات");
-      if(joinExisting && !formData.agencyId) return setError("الرجاء إدخال كود المؤسسة");
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      if (joinExisting) {
+        // انضمام لمؤسسة
+        const { data: agency } = await supabase.from('agencies').select('id').eq('id', formData.agencyId).single();
+        if (!agency) throw new Error("كود المؤسسة غير صحيح");
 
-      setLoading(true); setError('');
-      try {
-          const { data: existing } = await supabase.from('users').select('id').eq('username', formData.username.toLowerCase());
-          if(existing && existing.length > 0) throw new Error("اسم المستخدم محجوز مسبقاً");
-          
-          if (joinExisting) {
-             const { data: agency } = await supabase.from('agencies').select('id').eq('id', formData.agencyId).single();
-             if (!agency) throw new Error("كود المؤسسة غير صحيح. تأكد من الرقم مع المدير.");
-
-             const newUser = {
-                 id: String(Date.now()),
-                 name: formData.name,
-                 username: formData.username.toLowerCase(),
-                 password: formData.password,
-                 role: 'journalist',
-                 section: 'عام',
-                 approved: false,
-                 agency_id: formData.agencyId,
-                 daily_target: 10
-             };
-
-             const { error: insertError } = await supabase.from('users').insert([newUser]);
-             if(insertError) throw insertError;
-
-             alert("تم إرسال طلب الانضمام بنجاح! يرجى انتظار تفعيل الحساب من قبل مدير المؤسسة.");
-             setIsRegistering(false);
-             setJoinExisting(false);
-             setFormData({ username: '', password: '', name: '', agencyId: '' });
-
-          } else {
-             const newAgencyId = Date.now(); 
-             const { error: agencyError } = await supabase.from('agencies').insert([
-                { id: newAgencyId, name: `مؤسسة ${formData.name}` }
-             ]);
-             if(agencyError) throw new Error("فشل إنشاء سجل المؤسسة");
-
-             const { error: settingsError } = await supabase.from('agency_settings').insert([{ agency_id: newAgencyId }]);
-             if(settingsError) throw settingsError;
-
-             const newUser = {
-                 id: String(Date.now()),
-                 name: formData.name,
-                 username: formData.username.toLowerCase(),
-                 password: formData.password,
-                 role: 'admin',
-                 section: 'إدارة',
-                 approved: true,
-                 agency_id: newAgencyId,
-                 daily_target: 0
-             };
-
-             const { error: insertError } = await supabase.from('users').insert([newUser]);
-             if(insertError) throw insertError;
-
-             onLogin(newUser);
-          }
-      } catch (err) {
-          console.error(err);
-          setError(err.message || "فشل إنشاء الحساب");
-      } finally {
-          setLoading(false);
+        const newUser = {
+          id: String(Date.now()),
+          name: formData.name,
+          username: formData.username.toLowerCase(),
+          password: formData.password,
+          role: 'journalist',
+          agency_id: formData.agencyId,
+          approved: false
+        };
+        const { error: insErr } = await supabase.from('users').insert([newUser]);
+        if (insErr) throw insErr;
+        alert("تم إرسال طلب الانضمام! انتظر موافقة المدير.");
+        setIsRegistering(false);
+      } else {
+        // إنشاء مؤسسة جديدة
+        const newId = Date.now();
+        await supabase.from('agencies').insert([{ id: newId, name: `مؤسسة ${formData.name}` }]);
+        await supabase.from('agency_settings').insert([{ agency_id: newId }]);
+        const adminUser = {
+          id: String(Date.now()),
+          name: formData.name,
+          username: formData.username.toLowerCase(),
+          password: formData.password,
+          role: 'admin',
+          agency_id: newId,
+          approved: true
+        };
+        await supabase.from('users').insert([adminUser]);
+        onLogin(adminUser);
       }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[80vh]">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md border border-gray-100">
+    <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
+      <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-slate-100">
         <div className="text-center mb-8">
-          <div className="bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Lock className="h-8 w-8 text-blue-700" />
+          <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white shadow-lg shadow-blue-200">
+            <Lock size={32} />
           </div>
-          <h2 className="text-2xl font-black text-gray-800">Newsroom Platform</h2>
-          <p className="text-gray-500 text-sm mt-2">{isRegistering ? (joinExisting ? 'الانضمام لمؤسسة قائمة' : 'إنشاء مؤسسة جديدة') : 'تسجيل دخول الموظفين'}</p>
+          <h2 className="text-3xl font-black text-slate-800">Newsroom</h2>
+          <p className="text-slate-500 mt-2">{isRegistering ? 'إنشاء حساب جديد' : 'تسجيل دخول الموظفين'}</p>
         </div>
 
-        {serverError && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold flex items-center gap-2"><Server className="h-4 w-4"/> لا يمكن الاتصال بالخادم</div>}
-        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold text-center animate-bounce-in">{error}</div>}
+        {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 text-sm font-bold text-center border border-red-100">{error}</div>}
 
         <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
-          
           {isRegistering && (
-             <>
-               <div className="flex gap-4 mb-2 p-1 bg-gray-100 rounded-lg">
-                  <button type="button" onClick={() => setJoinExisting(false)} className={`flex-1 py-2 text-xs font-bold rounded-md transition ${!joinExisting ? 'bg-white shadow text-blue-800' : 'text-gray-500'}`}>إنشاء مؤسسة جديدة</button>
-                  <button type="button" onClick={() => setJoinExisting(true)} className={`flex-1 py-2 text-xs font-bold rounded-md transition ${joinExisting ? 'bg-white shadow text-blue-800' : 'text-gray-500'}`}>انضمام لمؤسسة</button>
-               </div>
-
-               {joinExisting && (
-                 <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">كود المؤسسة (Agency ID)</label>
-                    <input 
-                        type="number" 
-                        required 
-                        className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white" 
-                        placeholder="اطلب الكود من المدير" 
-                        value={formData.agencyId} 
-                        onChange={e => setFormData({ ...formData, agencyId: e.target.value })} 
-                    />
-                 </div>
-               )}
-
-               <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">الاسم الكامل</label>
-                  <input 
-                      type="text" 
-                      required 
-                      className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white" 
-                      placeholder="الاسم الثلاثي" 
-                      value={formData.name} 
-                      onChange={e => setFormData({ ...formData, name: e.target.value })} 
-                  />
-               </div>
-             </>
+            <>
+              <div className="flex gap-2 p-1 bg-slate-100 rounded-xl mb-4">
+                <button type="button" onClick={() => setJoinExisting(false)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${!joinExisting ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}>مؤسسة جديدة</button>
+                <button type="button" onClick={() => setJoinExisting(true)} className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${joinExisting ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}>انضمام لمؤسسة</button>
+              </div>
+              {joinExisting && (
+                <input type="number" placeholder="كود المؤسسة" className="w-full px-4 py-3 border rounded-xl bg-slate-50 focus:bg-white outline-none ring-blue-500 focus:ring-2" value={formData.agencyId} onChange={e => setFormData({...formData, agencyId: e.target.value})} />
+              )}
+              <input type="text" placeholder="الاسم الكامل" className="w-full px-4 py-3 border rounded-xl bg-slate-50 focus:bg-white outline-none ring-blue-500 focus:ring-2" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+            </>
           )}
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">اسم المستخدم</label>
-            <div className="relative">
-              <span className="absolute right-3 top-3 text-gray-400 text-sm font-bold">@</span>
-              <input 
-                type="text" 
-                required 
-                className="w-full pr-8 pl-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white dir-ltr text-right" 
-                placeholder="username" 
-                value={formData.username} 
-                onChange={e => setFormData({ ...formData, username: e.target.value.replace(/[^a-zA-Z0-9\s.]/g, '').toLowerCase() })} 
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">كلمة المرور</label>
-            <input type="password" required className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white" placeholder="••••••••" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
-          </div>
-
-          <button disabled={loading} className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 rounded-xl transition shadow-lg transform active:scale-95">
-            {loading ? 'جاري التحميل...' : (isRegistering ? (joinExisting ? 'إرسال طلب الانضمام' : 'إنشاء المؤسسة') : 'دخول')}
+          <input type="text" placeholder="اسم المستخدم" className="w-full px-4 py-3 border rounded-xl bg-slate-50 focus:bg-white outline-none ring-blue-500 focus:ring-2" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+          <input type="password" placeholder="كلمة المرور" className="w-full px-4 py-3 border rounded-xl bg-slate-50 focus:bg-white outline-none ring-blue-500 focus:ring-2" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
+          
+          <button disabled={loading} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl transition shadow-lg shadow-blue-100 flex items-center justify-center gap-2">
+            {loading ? <Loader2 className="animate-spin" /> : (isRegistering ? 'إنشاء الحساب' : 'دخول')}
           </button>
         </form>
-        
-        <div className="mt-6 text-center pt-4 border-t border-gray-100">
-           <button 
-              onClick={() => { setIsRegistering(!isRegistering); setError(''); setFormData({name:'', username:'', password:'', agencyId: ''}); setJoinExisting(false); }}
-              className="text-sm font-bold text-blue-700 hover:underline flex items-center justify-center gap-1 mx-auto"
-           >
-              {isRegistering ? 'لديك حساب بالفعل؟ تسجيل الدخول' : 'ليس لديك حساب؟ إنشاء حساب جديد'}
-           </button>
-        </div>
+
+        <button onClick={() => setIsRegistering(!isRegistering)} className="w-full mt-6 text-sm font-bold text-blue-600 hover:underline">
+          {isRegistering ? 'لديك حساب؟ سجل دخول' : 'ليس لديك حساب؟ إنشاء حساب جديد'}
+        </button>
       </div>
     </div>
   );
 }
 
-// ... (باقي كود الـ App الرئيسي)
-function App() {
-  const [user, setUser] = useState(() => {
+// --- المكون الرئيسي للمنصة ---
+function MainApp({ user, onLogout }) {
+  const [production, setProduction] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newArticle, setNewArticle] = useState({ headline: '', url: '', section: 'عام', status: 'نشرت', platform: 'موقع إلكتروني' });
+  const [aiIdea, setAiIdea] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('daily_production')
+      .select('*')
+      .eq('agency_id', user.agency_id)
+      .order('timestamp', { ascending: false });
+    setProduction(data || []);
+    setLoading(false);
+  };
+
+  const handleAddArticle = async (e) => {
+    e.preventDefault();
+    const item = {
+      id: String(Date.now()),
+      agency_id: user.agency_id,
+      journalist_name: user.name,
+      journalist_username: user.username,
+      ...newArticle,
+      date_string: new Date().toISOString().split('T')[0],
+      timestamp: new Date().toISOString()
+    };
+    await supabase.from('daily_production').insert([item]);
+    setShowAddModal(false);
+    fetchData();
+  };
+
+  const generateIdea = async () => {
+    setIsGenerating(true);
     try {
-      const saved = localStorage.getItem('newsroom_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: "اعطني 3 أفكار لمقالات صحفية ترند اليوم باللغة العربية مع عناوين جذابة",
+      });
+      setAiIdea(response.text);
+    } catch (err) {
+      setAiIdea("فشل توليد الأفكار، تأكد من مفتاح API Key");
     }
-  });
-  // ... (باقي الـ State والدوال)
+    setIsGenerating(false);
+  };
+
   return (
-    <div className="min-h-screen font-sans pb-32 md:pb-10" dir="rtl">
-       {/* (تكملة مكونات الـ UI) */}
+    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+      {/* Sidebar */}
+      <aside className="w-full md:w-64 bg-white border-l border-slate-200 p-6 flex flex-col">
+        <div className="flex items-center gap-3 mb-10">
+          <div className="bg-blue-600 p-2 rounded-lg text-white"><LayoutDashboard size={20}/></div>
+          <h1 className="text-xl font-black text-slate-800">Newsroom</h1>
+        </div>
+        
+        <nav className="flex-1 space-y-2">
+          <button className="w-full flex items-center gap-3 px-4 py-3 bg-blue-50 text-blue-700 rounded-xl font-bold transition">
+            <Activity size={18}/> الرئيسية
+          </button>
+          <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-bold transition">
+            <MessageSquare size={18}/> الرسائل
+          </button>
+          {user.role === 'admin' && (
+            <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-bold transition">
+              <Settings size={18}/> الإعدادات
+            </button>
+          )}
+        </nav>
+
+        <div className="mt-auto pt-6 border-t border-slate-100">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold uppercase">{user.name[0]}</div>
+            <div className="overflow-hidden">
+              <p className="text-sm font-bold text-slate-800 truncate">{user.name}</p>
+              <p className="text-xs text-slate-400 capitalize">{user.role}</p>
+            </div>
+          </div>
+          <button onClick={onLogout} className="w-full flex items-center gap-2 px-4 py-2 text-red-500 hover:bg-red-50 rounded-lg text-sm font-bold transition">
+            <LogOut size={16}/> تسجيل خروج
+          </button>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+          <div>
+            <h2 className="text-2xl font-black text-slate-800">أهلاً بك، {user.name} 👋</h2>
+            <p className="text-slate-500">متابعة الإنتاج اليومي للمؤسسة الصحفية</p>
+          </div>
+          <button onClick={() => setShowAddModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-2xl shadow-lg flex items-center gap-2 transition transform active:scale-95">
+            <Plus size={20}/> إضافة خبر جديد
+          </button>
+        </header>
+
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard title="إجمالي الأخبار" value={production.length} icon={FileText} colorClass="text-blue-600 bg-blue-600" />
+          <StatCard title="أخبار اليوم" value={production.filter(i => i.date_string === new Date().toISOString().split('T')[0]).length} icon={TrendingUp} colorClass="text-emerald-600 bg-emerald-600" />
+          <StatCard title="كود المؤسسة" value={user.agency_id} icon={Hash} colorClass="text-orange-600 bg-orange-600" />
+          <StatCard title="الصحفيين" value="-" icon={Users} colorClass="text-purple-600 bg-purple-600" />
+        </div>
+
+        {/* AI Ideas Section */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-3xl p-6 mb-8 text-white shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg"><Lightbulb size={24}/></div>
+              <h3 className="text-xl font-bold">أفكار ذكية بـ Gemini</h3>
+            </div>
+            <button onClick={generateIdea} disabled={isGenerating} className="bg-white text-blue-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-blue-50 transition">
+              {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <Zap size={16}/>}
+              توليد أفكار
+            </button>
+          </div>
+          {aiIdea && <div className="bg-white/10 p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap">{aiIdea}</div>}
+        </div>
+
+        {/* Production Table */}
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+            <h3 className="font-black text-slate-800">سجل الإنتاج الأخير</h3>
+            <button onClick={fetchData} className="text-slate-400 hover:text-blue-600 transition"><RefreshCw size={18}/></button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-right">
+              <thead>
+                <tr className="bg-slate-50 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                  <th className="px-6 py-4">الصحفي</th>
+                  <th className="px-6 py-4">العنوان</th>
+                  <th className="px-6 py-4">القسم</th>
+                  <th className="px-6 py-4">الحالة</th>
+                  <th className="px-6 py-4">المنصة</th>
+                  <th className="px-6 py-4">الوقت</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {loading ? (
+                   <tr><td colSpan="6" className="p-10 text-center"><Loader2 className="animate-spin mx-auto text-blue-600"/></td></tr>
+                ) : production.length === 0 ? (
+                   <tr><td colSpan="6" className="p-10 text-center text-slate-400 font-bold">لا يوجد إنتاج مسجل حالياً</td></tr>
+                ) : production.map(item => (
+                  <tr key={item.id} className="hover:bg-slate-50 transition">
+                    <td className="px-6 py-4 font-bold text-slate-700">{item.journalist_name}</td>
+                    <td className="px-6 py-4 max-w-xs"><p className="truncate font-medium text-slate-600">{item.headline}</p></td>
+                    <td className="px-6 py-4 text-sm text-slate-500">{item.section}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${item.status === 'نشرت' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-xs font-medium text-slate-400">{item.platform}</td>
+                    <td className="px-6 py-4 text-xs text-slate-400">{new Date(item.timestamp).toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'})}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl animate-in zoom-in duration-200">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-xl font-black text-slate-800">إضافة إنتاج جديد</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-red-500 transition"><X/></button>
+            </div>
+            <form onSubmit={handleAddArticle} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">عنوان الخبر</label>
+                <input required type="text" className="w-full px-4 py-3 border rounded-xl bg-slate-50 focus:bg-white outline-none" placeholder="اكتب العنوان هنا..." value={newArticle.headline} onChange={e => setNewArticle({...newArticle, headline: e.target.value})} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">القسم</label>
+                  <select className="w-full px-4 py-3 border rounded-xl bg-slate-50 outline-none" value={newArticle.section} onChange={e => setNewArticle({...newArticle, section: e.target.value})}>
+                    {DEFAULT_DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">الحالة</label>
+                  <select className="w-full px-4 py-3 border rounded-xl bg-slate-50 outline-none" value={newArticle.status} onChange={e => setNewArticle({...newArticle, status: e.target.value})}>
+                    <option value="نشرت">نشرت</option>
+                    <option value="ديسك">ديسك</option>
+                    <option value="مبيت">مبيت</option>
+                  </select>
+                </div>
+              </div>
+              <button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg transition">حفظ الإنتاج</button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- المكون الرئيسي للمدخل ---
+function App() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('newsroom_user');
+    if (saved) setUser(JSON.parse(saved));
+  }, []);
+
+  const handleLogin = (u) => {
+    setUser(u);
+    localStorage.setItem('newsroom_user', JSON.stringify(u));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('newsroom_user');
+  };
+
+  return (
+    <div className="antialiased text-slate-900" dir="rtl">
+      {!user ? (
+        <AuthScreen onLogin={handleLogin} />
+      ) : (
+        <MainApp user={user} onLogout={handleLogout} />
+      )}
     </div>
   );
 }
