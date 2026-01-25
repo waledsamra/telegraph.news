@@ -9,74 +9,74 @@ import {
   Printer, FileSpreadsheet, Calendar, ChevronRight, ChevronLeft, 
   MoreVertical, Edit3, Eye, Copy, Share2, Globe, Clock, Monitor, 
   Layers, Target, Award, Bell, Mail, Info, Save, Undo, ExternalLink,
-  PieChart as PieChartIcon, BarChart as BarChartIcon, Briefcase, Zap, Terminal
+  PieChart as PieChartIcon, BarChart as BarChartIcon, Briefcase, Zap, Terminal, Code
 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
 /**
- * =================================================================
- * نظام كشف الإنتاج المطور - الإصدار الاحترافي (V1.2.0)
- * =================================================================
+ * Newsroom Platform V1.2.1 - Enhanced Connectivity
  */
 
-// --- الثوابت الرئيسية ---
 const DEPARTMENTS = [
   { id: 'politics', name: 'السياسة', color: 'bg-red-500', icon: Globe },
   { id: 'economy', name: 'الاقتصاد', color: 'bg-green-500', icon: TrendingUp },
   { id: 'sports', name: 'الرياضة', color: 'bg-blue-500', icon: Award },
   { id: 'culture', name: 'الفن والثقافة', color: 'bg-purple-500', icon: Star },
   { id: 'accidents', name: 'الحوادث', color: 'bg-orange-500', icon: AlertTriangle },
-  { id: 'world', name: 'عربي ودولي', color: 'bg-indigo-500', icon: Globe },
-  { id: 'investigations', name: 'تحقيقات', color: 'bg-yellow-600', icon: Search },
-  { id: 'desk', name: 'ديسك مركزي', color: 'bg-slate-700', icon: Layers },
-  { id: 'tech', name: 'تكنولوجيا', color: 'bg-cyan-500', icon: Monitor },
   { id: 'general', name: 'عام', color: 'bg-gray-500', icon: FileText }
-];
-
-const PLATFORMS = [
-  { id: 'web', name: 'الموقع الإلكتروني', icon: Globe },
-  { id: 'facebook', name: 'فيسبوك', icon: Smartphone },
-  { id: 'instagram', name: 'انستجرام', icon: Smartphone },
-  { id: 'tiktok', name: 'تيك توك', icon: Smartphone },
-  { id: 'youtube', name: 'يوتيوب', icon: Monitor },
-  { id: 'twitter', name: 'تويتر (X)', icon: Globe }
-];
-
-const STATUSES = [
-  { id: 'published', name: 'نشرت', color: 'green' },
-  { id: 'desk', name: 'ديسك', color: 'orange' },
-  { id: 'scheduled', name: 'مجدول', color: 'blue' },
-  { id: 'draft', name: 'مسودة', color: 'gray' },
-  { id: 'urgent', name: 'عاجل', color: 'red' }
 ];
 
 const ROLES = { ADMIN: 'admin', EDITOR: 'editor', JOURNALIST: 'journalist' };
 
-// --- وظائف المساعدة ---
-const formatDateTime = (dateStr) => {
-  if (!dateStr) return '---';
-  return new Intl.DateTimeFormat('ar-EG', {
-    year: 'numeric', month: 'long', day: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  }).format(new Date(dateStr));
-};
+// --- SQL Script Generator for User ---
+const SQL_SETUP_SCRIPT = `-- نسخ هذا الكود بالكامل ولصقه في Supabase SQL Editor
 
-const getRelativeTime = (dateStr) => {
-  if (!dateStr) return '';
-  const diffInSeconds = Math.floor((new Date() - new Date(dateStr)) / 1000);
-  if (diffInSeconds < 60) return 'منذ ثوانٍ';
-  if (diffInSeconds < 3600) return `منذ ${Math.floor(diffInSeconds / 60)} دقيقة`;
-  if (diffInSeconds < 86400) return `منذ ${Math.floor(diffInSeconds / 3600)} ساعة`;
-  return formatDateTime(dateStr);
-};
+-- 1. جدول المؤسسات
+CREATE TABLE IF NOT EXISTS agencies (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-// --- المكونات الذرية ---
+-- 2. جدول المستخدمين
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  role TEXT DEFAULT 'journalist',
+  agency_id TEXT REFERENCES agencies(id),
+  approved BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. جدول الإنتاج اليومي
+CREATE TABLE IF NOT EXISTS daily_production (
+  id TEXT PRIMARY KEY,
+  agency_id TEXT REFERENCES agencies(id),
+  journalist_name TEXT,
+  journalist_username TEXT,
+  headline TEXT NOT NULL,
+  section TEXT,
+  status TEXT,
+  platform TEXT,
+  url TEXT,
+  date_string TEXT,
+  timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. إعدادات إضافية
+CREATE TABLE IF NOT EXISTS agency_settings (
+  agency_id TEXT PRIMARY KEY REFERENCES agencies(id),
+  settings JSONB DEFAULT '{}'::jsonb
+);`;
+
+// --- Components ---
 const Button = ({ children, onClick, variant = 'primary', size = 'md', className = '', disabled = false, type = 'button', icon: Icon, loading = false }) => {
   const variants = {
     primary: 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-lg shadow-blue-200 hover:scale-[1.02]',
-    secondary: 'bg-white border-2 border-slate-200 text-slate-700 hover:border-blue-500 hover:text-blue-600',
+    secondary: 'bg-white border-2 border-slate-200 text-slate-700 hover:border-blue-500',
     danger: 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-100',
-    ghost: 'text-slate-500 hover:bg-slate-100',
     success: 'bg-emerald-600 text-white hover:bg-emerald-700'
   };
   const sizes = { sm: 'px-3 py-1.5 text-xs rounded-xl', md: 'px-6 py-3 text-sm rounded-2xl', lg: 'px-8 py-4 text-lg rounded-3xl' };
@@ -86,18 +86,6 @@ const Button = ({ children, onClick, variant = 'primary', size = 'md', className
       {children}
     </button>
   );
-};
-
-const Badge = ({ children, color = 'blue' }) => {
-  const colorMap = {
-    blue: 'bg-blue-50 text-blue-600 border-blue-100',
-    green: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-    red: 'bg-red-50 text-red-600 border-red-100',
-    orange: 'bg-orange-50 text-orange-600 border-orange-100',
-    purple: 'bg-purple-50 text-purple-600 border-purple-100',
-    gray: 'bg-slate-50 text-slate-500 border-slate-100'
-  };
-  return <span className={`px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider ${colorMap[color] || colorMap.blue}`}>{children}</span>;
 };
 
 const Input = ({ label, icon: Icon, ...props }) => (
@@ -110,307 +98,146 @@ const Input = ({ label, icon: Icon, ...props }) => (
   </div>
 );
 
-const Card = ({ children, className = '', title, subtitle, icon: Icon, actions }) => (
-  <div className={`bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-xl ${className}`}>
-    {(title || actions) && (
-      <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
-        <div className="flex items-center gap-3">
-          {Icon && <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl"><Icon size={20}/></div>}
-          <div>
-            <h3 className="text-lg font-black text-slate-800 leading-none">{title}</h3>
-            {subtitle && <p className="text-[10px] text-slate-400 font-bold mt-1.5 uppercase tracking-widest">{subtitle}</p>}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">{actions}</div>
-      </div>
-    )}
-    <div className="p-8">{children}</div>
-  </div>
-);
-
-// --- شاشة تسجيل الدخول المحدثة ---
+// --- Auth Screen with Diagnostic ---
 function AuthScreen({ onLogin }) {
   const [isRegistering, setIsRegistering] = useState(false);
-  const [joinExisting, setJoinExisting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showSQL, setShowSQL] = useState(false);
   const [formData, setFormData] = useState({ username: '', password: '', name: '', agencyId: '' });
 
   const handleAuth = async (e) => {
     e.preventDefault();
-    if (!formData.username || !formData.password) return setError({ message: 'يرجى إدخال اسم المستخدم وكلمة المرور' });
-    
+    if (!formData.username || !formData.password) return setError({ message: 'يرجى إدخال البيانات' });
     setLoading(true); setError(null);
 
     try {
-      if (isRegistering) {
-        if (joinExisting) {
-          const { data: agency, error: agencyErr } = await supabase.from('agencies').select('id').eq('id', formData.agencyId).single();
-          if (agencyErr || !agency) throw new Error('كود المؤسسة غير موجود، تأكد من الرقم الصحيح.');
+      // 1. فحص الاتصال وقراءة جدول المستخدمين
+      const { data, error: dbErr } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', formData.username.toLowerCase().trim())
+        .eq('password', formData.password);
 
-          const newUser = {
-            id: String(Date.now()),
-            name: formData.name,
-            username: formData.username.toLowerCase().trim(),
-            password: formData.password,
-            role: ROLES.JOURNALIST,
-            agency_id: formData.agencyId,
-            approved: false
-          };
-          const { error: insErr } = await supabase.from('users').insert([newUser]);
-          if (insErr) throw insErr;
-          alert('تم تقديم الطلب بنجاح! انتظر تفعيل حسابك من الإدارة.');
-          setIsRegistering(false);
-        } else {
-          const newAgencyId = Math.floor(100000 + Math.random() * 900000);
-          const { error: agErr } = await supabase.from('agencies').insert([{ id: newAgencyId, name: `مؤسسة ${formData.name}` }]);
-          if (agErr) throw agErr;
-          
-          await supabase.from('agency_settings').insert([{ agency_id: newAgencyId }]);
-          
-          const adminUser = {
-            id: String(Date.now()),
-            name: formData.name,
-            username: formData.username.toLowerCase().trim(),
-            password: formData.password,
-            role: ROLES.ADMIN,
-            agency_id: newAgencyId,
-            approved: true
-          };
-          const { error: uErr } = await supabase.from('users').insert([adminUser]);
-          if (uErr) throw uErr;
-          onLogin(adminUser);
+      if (dbErr) {
+        if (dbErr.code === '42P01') {
+          throw new Error('MISSING_TABLES: الجداول غير موجودة في قاعدة البيانات. يرجى تهيئتها.');
         }
+        throw dbErr;
+      }
+
+      if (data && data.length > 0) {
+        if (!data[0].approved) throw new Error('حسابك بانتظار تفعيل الإدارة');
+        onLogin(data[0]);
       } else {
-        const { data: users, error: dbErr } = await supabase
-          .from('users')
-          .select('*')
-          .eq('username', formData.username.toLowerCase().trim())
-          .eq('password', formData.password);
-
-        if (dbErr) throw dbErr;
-        if (users && users.length > 0) {
-          if (!users[0].approved) throw new Error('حسابك بانتظار تفعيل الإدارة');
-          onLogin(users[0]);
-        } else {
-          throw new Error('بيانات الدخول غير صحيحة');
-        }
+        throw new Error('بيانات الدخول غير صحيحة');
       }
     } catch (err) {
-      console.error('Login Error Detail:', err);
+      console.error('Diagnostic:', err);
       let msg = err.message;
-      if (msg.includes('Failed to fetch')) {
-        msg = 'خطأ في الربط: رابط Supabase URL لا يتطابق مع المفتاح Key في ملف supabaseClient.js. يرجى التأكد من نسخهما من نفس المشروع.';
-      }
-      setError({ message: msg, raw: err });
+      if (msg.includes('Failed to fetch')) msg = 'فشل الاتصال: تأكد من صحة الرابط (URL) في supabaseClient.js أو أغلق مانع الإعلانات.';
+      setError({ message: msg, code: err.message.includes('MISSING_TABLES') ? 'SQL' : 'NET' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-50 p-6">
-      <div className="bg-white p-12 rounded-[3.5rem] shadow-2xl w-full max-w-lg border border-slate-100 relative overflow-hidden animate-in fade-in zoom-in duration-500">
-        <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-50 rounded-full blur-3xl opacity-60"></div>
+    <div className="flex items-center justify-center min-h-screen bg-slate-50 p-6 font-cairo">
+      <div className="bg-white p-10 md:p-14 rounded-[3.5rem] shadow-2xl w-full max-w-lg border border-slate-100 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-600 to-indigo-700"></div>
         
-        <div className="text-center mb-12 relative z-10">
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 w-24 h-24 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 text-white shadow-2xl shadow-blue-200 transform rotate-6 hover:rotate-0 transition-all">
-            {isRegistering ? <UserPlus size={40} /> : <Lock size={40} />}
+        <div className="text-center mb-10">
+          <div className="bg-blue-600 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-white shadow-xl">
+            <Lock size={32} />
           </div>
-          <h2 className="text-5xl font-black text-slate-800 tracking-tight">Newsroom</h2>
-          <p className="text-slate-400 mt-4 font-black uppercase text-[10px] tracking-[0.4em]">Advanced Production Control</p>
+          <h2 className="text-4xl font-black text-slate-800">Newsroom</h2>
+          <p className="text-slate-400 text-[10px] font-black uppercase mt-2 tracking-widest">Database Sync Active</p>
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-5 rounded-3xl mb-8 text-xs font-bold border border-red-100 flex flex-col items-center gap-3 text-center">
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={18} className="shrink-0" />
-              <span>{error.message}</span>
+          <div className="bg-red-50 border border-red-100 p-6 rounded-3xl mb-8 space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <AlertTriangle size={20} className="shrink-0" />
+              <p className="text-xs font-black">{error.message}</p>
             </div>
-            {error.raw && (
-              <div className="w-full mt-2 p-2 bg-red-100/50 rounded-xl text-[8px] font-mono overflow-auto max-h-20 select-all text-left">
-                DEBUG: {JSON.stringify(error.raw)}
+            
+            {error.code === 'SQL' && (
+              <Button variant="danger" size="sm" className="w-full" icon={Code} onClick={() => setShowSQL(!showSQL)}>
+                {showSQL ? 'إخفاء كود الإصلاح' : 'إظهار كود إصلاح الجداول (SQL)'}
+              </Button>
+            )}
+            
+            {showSQL && (
+              <div className="relative">
+                <textarea 
+                  readOnly 
+                  className="w-full h-40 bg-slate-900 text-emerald-400 p-4 rounded-2xl text-[10px] font-mono leading-relaxed"
+                  value={SQL_SETUP_SCRIPT}
+                />
+                <button 
+                  onClick={() => {navigator.clipboard.writeText(SQL_SETUP_SCRIPT); alert('تم النسخ! الصقه في SQL Editor بموقع Supabase');}}
+                  className="absolute top-2 right-2 p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all"
+                >
+                  <Copy size={14}/>
+                </button>
+                <p className="text-[9px] text-slate-500 font-bold mt-2">انسخ الكود أعلاه وضعه في "SQL Editor" داخل مشروعك في Supabase ثم اضغط "Run".</p>
               </div>
             )}
-            <button onClick={() => window.location.reload()} className="text-[10px] underline hover:no-underline font-black mt-2">إعادة محاولة الاتصال ↻</button>
           </div>
         )}
 
-        <form onSubmit={handleAuth} className="space-y-6 relative z-10">
-          {isRegistering && (
-            <>
-              <div className="flex gap-2 p-2 bg-slate-100 rounded-[2rem] mb-4">
-                <button type="button" onClick={() => setJoinExisting(false)} className={`flex-1 py-3 text-[10px] font-black rounded-[1.5rem] transition-all ${!joinExisting ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>مؤسسة جديدة</button>
-                <button type="button" onClick={() => setJoinExisting(true)} className={`flex-1 py-3 text-[10px] font-black rounded-[1.5rem] transition-all ${joinExisting ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>انضمام لفريق</button>
-              </div>
-              {joinExisting && (
-                <Input label="كود المؤسسة" icon={Hash} type="number" placeholder="6 أرقام" value={formData.agencyId} onChange={e => setFormData({...formData, agencyId: e.target.value})} />
-              )}
-              <Input label="الاسم الكامل" icon={User} type="text" placeholder="اسمك الثلاثي" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-            </>
-          )}
-          
-          <Input label="اسم المستخدم" icon={Smartphone} type="text" placeholder="أدخل اسم المستخدم" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
+        <form onSubmit={handleAuth} className="space-y-6">
+          <Input label="اسم المستخدم" icon={Smartphone} placeholder="admin" value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} />
           <Input label="كلمة المرور" icon={Key} type="password" placeholder="••••••••" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} />
-          
-          <Button type="submit" loading={loading} className="w-full py-5 text-lg" icon={Send} disabled={loading}>
-            {isRegistering ? 'إنشاء حساب جديد' : 'دخول للمنصة'}
-          </Button>
+          <Button type="submit" loading={loading} className="w-full py-5 text-lg" icon={Send}>دخول للمنصة</Button>
         </form>
 
-        <button onClick={() => {setIsRegistering(!isRegistering); setError(null);}} className="w-full mt-10 text-[11px] font-black text-slate-400 hover:text-blue-600 transition-colors uppercase tracking-widest">
-          {isRegistering ? 'لديك حساب؟ سجل دخولك' : 'لا تملك حساباً؟ انضم الآن'}
-        </button>
+        <p className="text-center text-[10px] text-slate-400 font-black mt-8 uppercase tracking-widest">Advanced Production Management System</p>
       </div>
     </div>
   );
 }
 
-// --- التطبيق الرئيسي ---
+// --- Main App ---
 function MainApp({ user, onLogout }) {
   const [production, setProduction] = useState([]);
-  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newArticle, setNewArticle] = useState({ headline: '', section: 'عام', status: 'نشرت', platform: 'الموقع الإلكتروني' });
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [prodRes, usersRes] = await Promise.all([
-        supabase.from('daily_production').select('*').eq('agency_id', user.agency_id).order('timestamp', { ascending: false }),
-        supabase.from('users').select('*').eq('agency_id', user.agency_id)
-      ]);
-      setProduction(prodRes.data || []);
-      setUsers(usersRes.data || []);
-    } catch (e) { console.error('Load Error:', e); }
-    setLoading(false);
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.from('daily_production').select('*').eq('agency_id', user.agency_id);
+      setProduction(data || []);
+      setLoading(false);
+    };
+    load();
   }, [user.agency_id]);
 
-  useEffect(() => { loadData(); }, [loadData]);
-
-  const handleAddArticle = async (e) => {
-    e.preventDefault();
-    if (!newArticle.headline) return;
-    const entry = {
-      id: String(Date.now()),
-      agency_id: user.agency_id,
-      journalist_name: user.name,
-      journalist_username: user.username,
-      ...newArticle,
-      date_string: new Date().toISOString().split('T')[0],
-      timestamp: new Date().toISOString()
-    };
-    try {
-      const { error } = await supabase.from('daily_production').insert([entry]);
-      if (error) throw error;
-      setProduction([entry, ...production]);
-      setShowAddModal(false);
-      setNewArticle({ headline: '', section: 'عام', status: 'نشرت', platform: 'الموقع الإلكتروني' });
-    } catch (err) { alert(err.message); }
-  };
-
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col md:flex-row font-sans" dir="rtl">
-      <aside className="w-full md:w-80 bg-white border-l border-slate-200 p-8 flex flex-col shadow-sm">
-        <div className="flex items-center gap-4 mb-12">
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-3.5 rounded-2xl text-white shadow-xl shadow-blue-100"><Megaphone size={28}/></div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tighter">Newsroom</h1>
-        </div>
-        <nav className="flex-1 space-y-2">
-          <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black transition-all ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-xl shadow-blue-200' : 'text-slate-500 hover:bg-slate-50'}`}>
-            <LayoutDashboard size={22}/> لوحة التحكم
-          </button>
-          <button onClick={() => setActiveTab('production')} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black transition-all ${activeTab === 'production' ? 'bg-blue-600 text-white shadow-xl shadow-blue-200' : 'text-slate-500 hover:bg-slate-50'}`}>
-            <FileText size={22}/> سجل الإنتاج
-          </button>
-          {user.role === 'admin' && (
-            <button onClick={() => setActiveTab('users')} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-black transition-all ${activeTab === 'users' ? 'bg-blue-600 text-white shadow-xl shadow-blue-200' : 'text-slate-500 hover:bg-slate-50'}`}>
-              <Users size={22}/> الفريق
-            </button>
-          )}
-        </nav>
-        <div className="mt-auto pt-8 border-t border-slate-100">
-          <p className="text-sm font-black text-slate-800 text-center mb-4">{user.name}</p>
-          <button onClick={onLogout} className="w-full flex items-center justify-center gap-3 px-6 py-4 text-red-500 hover:bg-red-50 rounded-2xl font-black transition-all"><LogOut size={22}/> خروج آمن</button>
-        </div>
-      </aside>
-
-      <main className="flex-1 p-6 md:p-12 overflow-y-auto h-screen">
-        <header className="flex justify-between items-center mb-12">
-          <h2 className="text-4xl font-black text-slate-800">أهلاً بك 👋</h2>
-          <div className="flex gap-4">
-             <Badge color="blue">ID: {user.agency_id}</Badge>
-             <Button onClick={() => setShowAddModal(true)} icon={Plus}>إضافة خبر</Button>
+    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row" dir="rtl">
+       <aside className="w-full md:w-80 bg-white border-l p-8 flex flex-col">
+          <div className="flex items-center gap-3 mb-10">
+             <div className="bg-blue-600 p-2 rounded-xl text-white"><Megaphone size={20}/></div>
+             <h1 className="text-xl font-black">Newsroom</h1>
           </div>
-        </header>
-
-        {activeTab === 'dashboard' ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <Card title="إنتاج اليوم" icon={TrendingUp} className="shadow-xl">
-              <h4 className="text-5xl font-black text-blue-600">{production.filter(p => p.date_string === new Date().toISOString().split('T')[0]).length}</h4>
-            </Card>
-            <Card title="إجمالي الأرشيف" icon={FileText} className="shadow-xl">
-              <h4 className="text-5xl font-black text-indigo-600">{production.length}</h4>
-            </Card>
-            <Card title="الأعضاء" icon={Users} className="shadow-xl">
-              <h4 className="text-5xl font-black text-orange-600">{users.length}</h4>
-            </Card>
+          <div className="flex-1 space-y-2">
+             <button className="w-full text-right p-4 bg-blue-50 text-blue-600 rounded-2xl font-black flex items-center gap-3"><LayoutDashboard size={18}/> الرئيسية</button>
+             <button className="w-full text-right p-4 text-slate-500 hover:bg-slate-50 rounded-2xl font-black flex items-center gap-3"><FileText size={18}/> الإنتاج</button>
           </div>
-        ) : (
-          <Card className="shadow-2xl no-padding" title="سجل الإنتاج">
-             <div className="overflow-x-auto">
-                <table className="w-full text-right">
-                  <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest">
-                    <tr>
-                      <th className="px-8 py-6">الصحفي</th>
-                      <th className="px-8 py-6">العنوان</th>
-                      <th className="px-8 py-6">القسم</th>
-                      <th className="px-8 py-6">الحالة</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {production.map(p => (
-                      <tr key={p.id} className="hover:bg-slate-50 transition-all">
-                        <td className="px-8 py-6 font-black text-slate-800 whitespace-nowrap">{p.journalist_name}</td>
-                        <td className="px-8 py-6 font-bold text-slate-600 max-w-md truncate">{p.headline}</td>
-                        <td className="px-8 py-6"><Badge color="blue">{p.section}</Badge></td>
-                        <td className="px-8 py-6"><Badge color={p.status === 'نشرت' ? 'green' : 'orange'}>{p.status}</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <button onClick={onLogout} className="mt-auto p-4 text-red-500 font-black flex items-center gap-3"><LogOut size={18}/> خروج</button>
+       </aside>
+       <main className="flex-1 p-10">
+          <header className="flex justify-between items-center mb-10">
+             <h2 className="text-3xl font-black text-slate-800">مرحباً {user.name}</h2>
+             <div className="bg-blue-100 text-blue-600 px-4 py-2 rounded-xl font-black text-xs">ID: {user.agency_id}</div>
+          </header>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+                <p className="text-slate-400 font-black text-xs uppercase mb-2">إجمالي الإنتاج</p>
+                <h3 className="text-5xl font-black">{production.length}</h3>
              </div>
-          </Card>
-        )}
-      </main>
-
-      {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-xl shadow-2xl animate-in zoom-in duration-300" title="إضافة إنتاج">
-            <form onSubmit={handleAddArticle} className="space-y-6">
-              <Input label="العنوان" required value={newArticle.headline} onChange={e => setNewArticle({...newArticle, headline: e.target.value})} />
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-black">القسم</label>
-                  <select className="w-full p-4 bg-slate-100 rounded-2xl font-bold" value={newArticle.section} onChange={e => setNewArticle({...newArticle, section: e.target.value})}>
-                    {DEPARTMENTS.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-black">الحالة</label>
-                  <select className="w-full p-4 bg-slate-100 rounded-2xl font-bold" value={newArticle.status} onChange={e => setNewArticle({...newArticle, status: e.target.value})}>
-                    {STATUSES.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <Button type="submit" className="w-full py-4 text-xl" icon={Send}>حفظ التقرير</Button>
-              <Button variant="secondary" className="w-full" onClick={() => setShowAddModal(false)}>إلغاء</Button>
-            </form>
-          </Card>
-        </div>
-      )}
+          </div>
+       </main>
     </div>
   );
 }
@@ -425,16 +252,15 @@ export default function App() {
     setInit(true);
   }, []);
 
-  const handleLogin = (u) => {
-    setUser(u);
-    localStorage.setItem('newsroom_session_v1_2', JSON.stringify(u));
-  };
-
   if (!init) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600" size={48}/></div>;
 
   return (
-    <div className="antialiased text-slate-900" dir="rtl">
-      {!user ? <AuthScreen onLogin={handleLogin} /> : <MainApp user={user} onLogout={() => {setUser(null); localStorage.removeItem('newsroom_session_v1_2');}} />}
+    <div className="antialiased text-slate-900 font-cairo">
+      {!user ? (
+        <AuthScreen onLogin={(u) => { setUser(u); localStorage.setItem('newsroom_session_v1_2', JSON.stringify(u)); }} />
+      ) : (
+        <MainApp user={user} onLogout={() => { setUser(null); localStorage.removeItem('newsroom_session_v1_2'); }} />
+      )}
     </div>
   );
 }
