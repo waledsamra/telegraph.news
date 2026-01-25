@@ -143,12 +143,6 @@ function AuthScreen({ onLogin }) {
     setLoading(true); setError(null);
 
     try {
-      // فحص سريع لجودة المفتاح في Client
-      const key = (await import('./supabaseClient')).supabase.supabaseKey;
-      if (!key || !key.startsWith('eyJ')) {
-        throw new Error('CONFIG_ERROR: مفتاح Supabase Key غير صالح. يجب أن يبدأ بـ eyJ. يرجى تعديل supabaseClient.js');
-      }
-
       if (isRegistering) {
         if (joinExisting) {
           const { data: agency, error: agencyErr } = await supabase.from('agencies').select('id').eq('id', formData.agencyId).single();
@@ -199,14 +193,14 @@ function AuthScreen({ onLogin }) {
           if (!users[0].approved) throw new Error('حسابك بانتظار تفعيل الإدارة');
           onLogin(users[0]);
         } else {
-          throw new Error('خطأ في اسم المستخدم أو كلمة المرور');
+          throw new Error('بيانات الدخول غير صحيحة');
         }
       }
     } catch (err) {
       console.error('Login Error Detail:', err);
       let msg = err.message;
       if (msg.includes('Failed to fetch')) {
-        msg = 'فشل الاتصال: تأكد من مفتاح API في supabaseClient.js (يجب أن يبدأ بـ eyJ).';
+        msg = 'خطأ في الربط: رابط Supabase URL لا يتطابق مع المفتاح Key في ملف supabaseClient.js. يرجى التأكد من نسخهما من نفس المشروع.';
       }
       setError({ message: msg, raw: err });
     } finally {
@@ -228,17 +222,17 @@ function AuthScreen({ onLogin }) {
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-5 rounded-3xl mb-8 text-xs font-bold border border-red-100 flex flex-col items-center gap-3">
+          <div className="bg-red-50 text-red-600 p-5 rounded-3xl mb-8 text-xs font-bold border border-red-100 flex flex-col items-center gap-3 text-center">
             <div className="flex items-center gap-2">
-              <AlertTriangle size={18} />
+              <AlertTriangle size={18} className="shrink-0" />
               <span>{error.message}</span>
             </div>
             {error.raw && (
-              <div className="w-full mt-2 p-2 bg-red-100/50 rounded-xl text-[8px] font-mono overflow-auto max-h-20 select-all">
+              <div className="w-full mt-2 p-2 bg-red-100/50 rounded-xl text-[8px] font-mono overflow-auto max-h-20 select-all text-left">
                 DEBUG: {JSON.stringify(error.raw)}
               </div>
             )}
-            <button onClick={() => window.location.reload()} className="text-[10px] underline hover:no-underline">تحديث الصفحة ↻</button>
+            <button onClick={() => window.location.reload()} className="text-[10px] underline hover:no-underline font-black mt-2">إعادة محاولة الاتصال ↻</button>
           </div>
         )}
 
@@ -309,7 +303,8 @@ function MainApp({ user, onLogout }) {
       timestamp: new Date().toISOString()
     };
     try {
-      await supabase.from('daily_production').insert([entry]);
+      const { error } = await supabase.from('daily_production').insert([entry]);
+      if (error) throw error;
       setProduction([entry, ...production]);
       setShowAddModal(false);
       setNewArticle({ headline: '', section: 'عام', status: 'نشرت', platform: 'الموقع الإلكتروني' });
