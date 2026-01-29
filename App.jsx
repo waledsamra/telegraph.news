@@ -1828,7 +1828,7 @@ function AdminDashboard({ user, departments, setDepartments, announcement, setAn
                               <div className="flex justify-between items-start mb-2 border-b border-gray-100 pb-2">
                                   <div>
                                       <p className="font-bold text-sm text-gray-800">{article.journalist_name}</p>
-                                      <p className="text-[10px] text-gray-400 dir-ltr text-right">@{users.find(u => u.name === article.journalist_name)?.username || 'user'}</p>
+                                      <p className="text-[10px] text-gray-400 dir-ltr text-right">{users.find(u => u.name === article.journalist_name)?.username || 'user'}</p>
                                   </div>
                                   <div className="flex gap-1">
                                       <button onClick={()=>openReviewModal(article)} title="تقييم المدير" className="text-blue-600 bg-white p-1.5 rounded border border-blue-200 shadow-sm"><Star size={14}/></button>
@@ -1950,7 +1950,7 @@ function AdminDashboard({ user, departments, setDepartments, announcement, setAn
                                     <div className={`w-2 h-2 rounded-full ${isOnline(u.last_active) ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                                     <div>
                                         <div className="font-bold">{u.name}</div>
-                                        <div className="text-[10px] text-gray-400 dir-ltr text-right">@{u.username}</div>
+                                        <div className="text-[10px] text-gray-400 dir-ltr text-right">{u.username}</div>
                                     </div>
                                 </div>
                             </td>
@@ -2400,7 +2400,7 @@ function AuthScreen({ onLogin, serverError }) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [joinExisting, setJoinExisting] = useState(false); // New state to toggle join mode
   const [formData, setFormData] = useState({ 
-    username: '', 
+    email: '', 
     password: '',
     name: '',
     agencyId: '' // For joining existing agency
@@ -2594,7 +2594,7 @@ if (error) throw error;
             <label className="block text-sm font-bold text-gray-700 mb-1">كلمة المرور</label>
             <input type="password" required className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white" placeholder="••••••••" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
           </div>
-<div className="text-[10px] text-gray-400 dir-ltr text-right">@{user.username}</div>
+
           <button disabled={loading} className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 rounded-xl transition shadow-lg transform active:scale-95">
             {loading ? 'جاري التحميل...' : (isRegistering ? (joinExisting ? 'إرسال طلب الانضمام' : 'إنشاء المؤسسة') : 'دخول')}
           </button>
