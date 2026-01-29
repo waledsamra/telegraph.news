@@ -2572,18 +2572,18 @@ function AuthScreen({ onLogin, serverError }) {
           )}
 
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">اسم المستخدم</label>
-            <div className="relative">
-              <span className="absolute right-3 top-3 text-gray-400 text-sm font-bold">@</span>
-              <input 
-                type="text" 
-                required 
-                className="w-full pr-8 pl-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white dir-ltr text-right" 
-                placeholder="username" 
-                value={formData.username} 
-                onChange={e => setFormData({ ...formData, username: e.target.value.replace(/[^a-zA-Z0-9\s]/g, '').toLowerCase() })} 
-              />
-            </div>
+  <label className="block text-sm font-bold text-gray-700 mb-1">البريد الإلكتروني</label>
+  <input
+    type="email"
+    required
+    className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white dir-ltr text-right"
+    placeholder="name@example.com"
+    value={formData.email}
+    onChange={(e) =>
+      setFormData({ ...formData, email: e.target.value.trim().toLowerCase() })
+    }
+  />
+</div>
           </div>
 
           <div>
