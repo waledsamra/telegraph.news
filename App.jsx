@@ -2594,7 +2594,7 @@ if (error) throw error;
             <label className="block text-sm font-bold text-gray-700 mb-1">كلمة المرور</label>
             <input type="password" required className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white" placeholder="••••••••" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
           </div>
-
+<div className="text-[10px] text-gray-400 dir-ltr text-right">@{user.username}</div>
           <button disabled={loading} className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 rounded-xl transition shadow-lg transform active:scale-95">
             {loading ? 'جاري التحميل...' : (isRegistering ? (joinExisting ? 'إرسال طلب الانضمام' : 'إنشاء المؤسسة') : 'دخول')}
           </button>
