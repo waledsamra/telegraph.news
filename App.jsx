@@ -2394,128 +2394,182 @@ function AdminDashboard({ user, departments, setDepartments, announcement, setAn
 }
 
 // ==========================================
-// 4. Auth Screen (SaaS Edition)
+// 4. Auth Screen (SaaS Edition) - UPDATED (Supabase Auth Email/Password)
 // ==========================================
 function AuthScreen({ onLogin, serverError }) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [joinExisting, setJoinExisting] = useState(false); // New state to toggle join mode
-  const [formData, setFormData] = useState({ 
-    email: '', 
-    password: '',
-    name: '',
-    agencyId: '' // For joining existing agency
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+    name: "",
+    agencyId: "" // For joining existing agency
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const normalizeEmail = (v) => (v || "").trim().toLowerCase();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setLoading(true); setError('');
-    
-   const { data, error } = await supabase.auth.signInWithPassword({
-  email: formData.email,
-  password: formData.password,
-});
+    setLoading(true);
+    setError("");
 
-if (error) throw error;
+    try {
+      // 1) Auth login
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: normalizeEmail(formData.email),
+        password: formData.password
+      });
+
+      if (authError) throw authError;
+
+      // 2) Fetch profile from users table (we store email in username for now)
+      const { data: users, error: profileError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("username", normalizeEmail(formData.email))
+        .limit(1);
+
+      if (profileError) throw profileError;
 
       if (users && users.length > 0) {
         const user = users[0];
-        if (!user.approved) { 
-           setError('لم تتم الموافقة على حسابك بعد من قبل مدير المؤسسة'); 
-        } else { 
-           onLogin(user); 
+
+        if (!user.approved) {
+          setError("لم تتم الموافقة على حسابك بعد من قبل مدير المؤسسة");
+          // Optional: sign out if not approved
+          try { await supabase.auth.signOut(); } catch (_) {}
+        } else {
+          onLogin(user);
         }
-      } else { 
-        setError('بيانات الدخول غير صحيحة'); 
+      } else {
+        // Auth succeeded but no profile in app table
+        setError("تم تسجيل الدخول لكن لا يوجد ملف مستخدم في النظام. تواصل مع المدير.");
       }
-    } catch (err) { 
-        console.error(err);
-        setError('فشل الاتصال بقاعدة البيانات'); 
-    } finally { 
-        setLoading(false); 
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || "فشل تسجيل الدخول");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRegister = async (e) => {
-      e.preventDefault();
-      if(!formData.name || !formData.username || !formData.password) return setError("الرجاء ملء جميع البيانات");
-      if(joinExisting && !formData.agencyId) return setError("الرجاء إدخال كود المؤسسة");
+    e.preventDefault();
 
-      setLoading(true); setError('');
-      try {
-          // Check if username exists globally
-          const { data: existing } = await supabase.from('users').select('id').eq('username', formData.username.toLowerCase());
-          if(existing && existing.length > 0) throw new Error("اسم المستخدم محجوز مسبقاً");
-          
-          if (joinExisting) {
-             // --- JOIN EXISTING AGENCY FLOW ---
-             
-             // 1. Verify Agency Exists
-             const { data: agency } = await supabase.from('agencies').select('id').eq('id', formData.agencyId).single();
-             if (!agency) throw new Error("كود المؤسسة غير صحيح. تأكد من الرقم مع المدير.");
+    if (!formData.name || !formData.email || !formData.password) {
+      return setError("الرجاء ملء جميع البيانات");
+    }
+    if (joinExisting && !formData.agencyId) {
+      return setError("الرجاء إدخال كود المؤسسة");
+    }
 
-             // 2. Create User (Journalist, Approved=False)
-             const newUser = {
-                 id: String(Date.now()),
-                 name: formData.name,
-                 username: formData.username.toLowerCase(),
-                 password: formData.password,
-                 role: 'journalist', // Default role for joiners
-                 section: 'عام',
-                 approved: false, // Needs admin approval
-                 agency_id: formData.agencyId,
-                 daily_target: 10
-             };
+    setLoading(true);
+    setError("");
 
-             const { error: insertError } = await supabase.from('users').insert([newUser]);
-             if(insertError) throw insertError;
+    try {
+      const email = normalizeEmail(formData.email);
 
-             alert("تم إرسال طلب الانضمام بنجاح! يرجى انتظار تفعيل الحساب من قبل مدير المؤسسة.");
-             setIsRegistering(false); // Switch back to login
-             setJoinExisting(false);
-             setFormData({ username: '', password: '', name: '', agencyId: '' });
+      // 0) Check if email already exists in app users table
+      const { data: existing, error: existingError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("username", email)
+        .limit(1);
 
-          } else {
-             // --- CREATE NEW AGENCY FLOW ---
-             
-             // Generate new agency ID
-             const newAgencyId = Date.now(); 
-             
-             // 1. Create Agency Record
-             const { error: agencyError } = await supabase.from('agencies').insert([
-                { id: newAgencyId, name: `مؤسسة ${formData.name}` }
-             ]);
-             if(agencyError) throw new Error("فشل إنشاء سجل المؤسسة");
+      if (existingError) throw existingError;
+      if (existing && existing.length > 0) throw new Error("البريد الإلكتروني مستخدم مسبقاً");
 
-             // 2. Create Settings
-             const { error: settingsError } = await supabase.from('agency_settings').insert([{ agency_id: newAgencyId }]);
-             if(settingsError) throw settingsError;
+      // 1) Create auth user
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password: formData.password
+      });
 
-             // 3. Create Admin User
-             const newUser = {
-                 id: String(Date.now()),
-                 name: formData.name,
-                 username: formData.username.toLowerCase(),
-                 password: formData.password,
-                 role: 'admin',
-                 section: 'إدارة',
-                 approved: true, // Admin is auto-approved
-                 agency_id: newAgencyId,
-                 daily_target: 0
-             };
+      if (signUpError) throw signUpError;
 
-             const { error: insertError } = await supabase.from('users').insert([newUser]);
-             if(insertError) throw insertError;
+      const authUserId = signUpData?.user?.id;
+      if (!authUserId) throw new Error("تعذر إنشاء المستخدم في نظام المصادقة");
 
-             onLogin(newUser);
-          }
-      } catch (err) {
-          console.error(err);
-          setError(err.message || "فشل إنشاء الحساب");
-      } finally {
-          setLoading(false);
+      if (joinExisting) {
+        // --- JOIN EXISTING AGENCY FLOW ---
+
+        // 2) Verify Agency Exists
+        const { data: agency, error: agencyFetchError } = await supabase
+          .from("agencies")
+          .select("id")
+          .eq("id", formData.agencyId)
+          .single();
+
+        if (agencyFetchError) throw agencyFetchError;
+        if (!agency) throw new Error("كود المؤسسة غير صحيح. تأكد من الرقم مع المدير.");
+
+        // 3) Create user profile in app table (Journalist, Approved=False)
+        const newUser = {
+          id: authUserId,
+          name: formData.name,
+          username: email, // store email here for now
+          role: "journalist",
+          section: "عام",
+          approved: false, // Needs admin approval
+          agency_id: formData.agencyId,
+          daily_target: 10
+        };
+
+        const { error: insertError } = await supabase.from("users").insert([newUser]);
+        if (insertError) throw insertError;
+
+        alert("تم إرسال طلب الانضمام بنجاح! يرجى انتظار تفعيل الحساب من قبل مدير المؤسسة.");
+        setIsRegistering(false);
+        setJoinExisting(false);
+        setFormData({ email: "", password: "", name: "", agencyId: "" });
+
+        // Optional: sign out until approved
+        try { await supabase.auth.signOut(); } catch (_) {}
+      } else {
+        // --- CREATE NEW AGENCY FLOW ---
+
+        // Generate new agency ID
+        const newAgencyId = Date.now();
+
+        // 2) Create Agency Record
+        const { error: agencyError } = await supabase
+          .from("agencies")
+          .insert([{ id: newAgencyId, name: `مؤسسة ${formData.name}` }]);
+
+        if (agencyError) throw new Error("فشل إنشاء سجل المؤسسة");
+
+        // 3) Create Settings
+        const { error: settingsError } = await supabase
+          .from("agency_settings")
+          .insert([{ agency_id: newAgencyId }]);
+
+        if (settingsError) throw settingsError;
+
+        // 4) Create Admin profile in app table
+        const newUser = {
+          id: authUserId,
+          name: formData.name,
+          username: email, // store email here for now
+          role: "admin",
+          section: "إدارة",
+          approved: true,
+          agency_id: newAgencyId,
+          daily_target: 0
+        };
+
+        const { error: insertError } = await supabase.from("users").insert([newUser]);
+        if (insertError) throw insertError;
+
+        onLogin(newUser);
       }
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || "فشل إنشاء الحساب");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -2526,93 +2580,126 @@ if (error) throw error;
             <Lock className="h-8 w-8 text-blue-700" />
           </div>
           <h2 className="text-2xl font-black text-gray-800">Newsroom Platform</h2>
-          <p className="text-gray-500 text-sm mt-2">{isRegistering ? (joinExisting ? 'الانضمام لمؤسسة قائمة' : 'إنشاء مؤسسة جديدة') : 'تسجيل دخول الموظفين'}</p>
+          <p className="text-gray-500 text-sm mt-2">
+            {isRegistering ? (joinExisting ? "الانضمام لمؤسسة قائمة" : "إنشاء مؤسسة جديدة") : "تسجيل دخول الموظفين"}
+          </p>
         </div>
 
-        {serverError && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold flex items-center gap-2"><Server className="h-4 w-4"/> لا يمكن الاتصال بالخادم</div>}
-        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold text-center animate-bounce-in">{error}</div>}
+        {serverError && (
+          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold flex items-center gap-2">
+            <Server className="h-4 w-4" /> لا يمكن الاتصال بالخادم
+          </div>
+        )}
+        {error && (
+          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm font-bold text-center animate-bounce-in">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
-          
           {isRegistering && (
-             <>
-               <div className="flex gap-4 mb-2 p-1 bg-gray-100 rounded-lg">
-                  <button type="button" onClick={() => setJoinExisting(false)} className={`flex-1 py-2 text-xs font-bold rounded-md transition ${!joinExisting ? 'bg-white shadow text-blue-800' : 'text-gray-500'}`}>إنشاء مؤسسة جديدة</button>
-                  <button type="button" onClick={() => setJoinExisting(true)} className={`flex-1 py-2 text-xs font-bold rounded-md transition ${joinExisting ? 'bg-white shadow text-blue-800' : 'text-gray-500'}`}>انضمام لمؤسسة</button>
-               </div>
+            <>
+              <div className="flex gap-4 mb-2 p-1 bg-gray-100 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setJoinExisting(false)}
+                  className={`flex-1 py-2 text-xs font-bold rounded-md transition ${
+                    !joinExisting ? "bg-white shadow text-blue-800" : "text-gray-500"
+                  }`}
+                >
+                  إنشاء مؤسسة جديدة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJoinExisting(true)}
+                  className={`flex-1 py-2 text-xs font-bold rounded-md transition ${
+                    joinExisting ? "bg-white shadow text-blue-800" : "text-gray-500"
+                  }`}
+                >
+                  انضمام لمؤسسة
+                </button>
+              </div>
 
-               {joinExisting && (
-                 <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">كود المؤسسة (Agency ID)</label>
-                    <input 
-                        type="number" 
-                        required 
-                        className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white" 
-                        placeholder="اطلب الكود من المدير" 
-                        value={formData.agencyId} 
-                        onChange={e => setFormData({ ...formData, agencyId: e.target.value })} 
-                    />
-                 </div>
-               )}
-
-               <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">الاسم الكامل</label>
-                  <input 
-                      type="text" 
-                      required 
-                      className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white" 
-                      placeholder="الاسم الثلاثي" 
-                      value={formData.name} 
-                      onChange={e => setFormData({ ...formData, name: e.target.value })} 
+              {joinExisting && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">كود المؤسسة (Agency ID)</label>
+                  <input
+                    type="number"
+                    required
+                    className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white"
+                    placeholder="اطلب الكود من المدير"
+                    value={formData.agencyId}
+                    onChange={(e) => setFormData({ ...formData, agencyId: e.target.value })}
                   />
-               </div>
-             </>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">الاسم الكامل</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white"
+                  placeholder="الاسم الثلاثي"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+            </>
           )}
 
+          {/* EMAIL (replaces username) */}
           <div>
-  <label className="block text-sm font-bold text-gray-700 mb-1">
-    البريد الإلكتروني
-  </label>
-
-  <input
-    type="email"
-    required
-    className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white dir-ltr text-right"
-    placeholder="name@example.com"
-    value={formData.email}
-    onChange={e =>
-      setFormData({
-        ...formData,
-        email: e.target.value.trim().toLowerCase(),
-      })
-    }
-  />
-</div>
+            <label className="block text-sm font-bold text-gray-700 mb-1">البريد الإلكتروني</label>
+            <input
+              type="email"
+              required
+              className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white dir-ltr text-right"
+              placeholder="name@example.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value.trim().toLowerCase() })}
+            />
           </div>
 
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">كلمة المرور</label>
-            <input type="password" required className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white" placeholder="••••••••" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} />
+            <input
+              type="password"
+              required
+              className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white"
+              placeholder="••••••••"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            />
           </div>
 
-          <button disabled={loading} className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 rounded-xl transition shadow-lg transform active:scale-95">
-            {loading ? 'جاري التحميل...' : (isRegistering ? (joinExisting ? 'إرسال طلب الانضمام' : 'إنشاء المؤسسة') : 'دخول')}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-800 hover:bg-blue-900 text-white font-bold py-3 rounded-xl transition shadow-lg transform active:scale-95"
+          >
+            {loading ? "جاري التحميل..." : isRegistering ? (joinExisting ? "إرسال طلب الانضمام" : "إنشاء المؤسسة") : "دخول"}
           </button>
         </form>
-        
+
         <div className="mt-6 text-center pt-4 border-t border-gray-100">
-           <button 
-              onClick={() => { setIsRegistering(!isRegistering); setError(''); setFormData({name:'', username:'', password:'', agencyId: ''}); setJoinExisting(false); }}
-              className="text-sm font-bold text-blue-700 hover:underline flex items-center justify-center gap-1 mx-auto"
-           >
-              {isRegistering ? 'لديك حساب بالفعل؟ تسجيل الدخول' : 'ليس لديك حساب؟ إنشاء حساب جديد'}
-           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegistering(!isRegistering);
+              setError("");
+              setFormData({ name: "", email: "", password: "", agencyId: "" });
+              setJoinExisting(false);
+            }}
+            className="text-sm font-bold text-blue-700 hover:underline flex items-center justify-center gap-1 mx-auto"
+          >
+            {isRegistering ? "لديك حساب بالفعل؟ تسجيل الدخول" : "ليس لديك حساب؟ إنشاء حساب جديد"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
-
 // ==========================================
 // App Component
 // ==========================================
