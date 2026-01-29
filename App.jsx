@@ -2570,15 +2570,21 @@ if (error) throw error;
           )}
 
           <div>
-  <label className="block text-sm font-bold text-gray-700 mb-1">البريد الإلكتروني</label>
+  <label className="block text-sm font-bold text-gray-700 mb-1">
+    البريد الإلكتروني
+  </label>
+
   <input
     type="email"
     required
     className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-blue-600 outline-none transition bg-gray-50 focus:bg-white dir-ltr text-right"
     placeholder="name@example.com"
     value={formData.email}
-    onChange={(e) =>
-      setFormData({ ...formData, email: e.target.value.trim().toLowerCase() })
+    onChange={e =>
+      setFormData({
+        ...formData,
+        email: e.target.value.trim().toLowerCase(),
+      })
     }
   />
 </div>
@@ -2871,7 +2877,7 @@ function App() {
 
               <div className="text-left hidden sm:block">
                 <div className="text-sm font-bold text-blue-900">{user.name}</div>
-                <div className="text-[10px] text-gray-400 dir-ltr text-right">@{user.username}</div>
+              
               </div>
               <button 
                 onClick={handleLogout}
