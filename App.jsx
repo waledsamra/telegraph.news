@@ -2413,13 +2413,13 @@ function AuthScreen({ onLogin, serverError }) {
     setLoading(true); setError('');
     
     try {
-      const { data: users, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('username', formData.username.toLowerCase())
-        .eq('password', formData.password); // Note: Should hash passwords in real app
+      const { data, error } = await supabase.auth.signInWithPassword({
+  email: formData.email,
+  password: formData.password,
+});
 
-      if (error) throw error;
+if (error) {
+  throw error;
 
       if (users && users.length > 0) {
         const user = users[0];
