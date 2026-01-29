@@ -2418,8 +2418,7 @@ function AuthScreen({ onLogin, serverError }) {
   password: formData.password,
 });
 
-if (error) {
-  throw error;
+if (error) throw error;
 
       if (users && users.length > 0) {
         const user = users[0];
