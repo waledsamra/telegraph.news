@@ -2412,8 +2412,7 @@ function AuthScreen({ onLogin, serverError }) {
     e.preventDefault();
     setLoading(true); setError('');
     
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+   const { data, error } = await supabase.auth.signInWithPassword({
   email: formData.email,
   password: formData.password,
 });
