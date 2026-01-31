@@ -2488,6 +2488,30 @@ function AuthScreen({ onLogin, serverError }) {
         email,
         password: formData.password
       });
+      // ✅ الخطوة الثانية: تسجيل دخول فوري بعد التسجيل
+const { data: loginData, error: loginError } =
+  await supabase.auth.signInWithPassword({
+    email,
+    password: formData.password
+  });
+      const newUser = {
+  id: authUserId,
+  name: formData.name,
+  username: email,
+  role: "admin", // أو journalist
+  approved: true,
+  agency_id: newAgencyId
+};
+
+await supabase.from("users").upsert([newUser]);
+
+if (loginError) throw loginError;
+
+// دلوقتي session موجودة
+const authUserId = loginData?.user?.id;
+if (!authUserId) {
+  throw new Error("تعذر إنشاء جلسة للمستخدم بعد التسجيل");
+}
       
 
       if (signUpError) throw signUpError;
