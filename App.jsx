@@ -2488,6 +2488,20 @@ function AuthScreen({ onLogin, serverError }) {
         email,
         password: formData.password
       });
+      // ✅ الخطوة الثانية: تسجيل دخول فوري بعد التسجيل
+const { data: loginData, error: loginError } =
+  await supabase.auth.signInWithPassword({
+    email,
+    password: formData.password
+  });
+
+if (loginError) throw loginError;
+
+// دلوقتي session موجودة
+const authUserId = loginData?.user?.id;
+if (!authUserId) {
+  throw new Error("تعذر إنشاء جلسة للمستخدم بعد التسجيل");
+}
 
       if (signUpError) throw signUpError;
 
