@@ -2394,7 +2394,7 @@ function AdminDashboard({ user, departments, setDepartments, announcement, setAn
 }
 
 // ==========================================
-// 4. Auth Screen (SaaS Edition) - UPDATED (Supabase Auth Email/Password)
+// 4. Auth Screen (SaaS Edition) - UPDATED (Supabase Auth Email/Password) - FIXED
 // ==========================================
 function AuthScreen({ onLogin, serverError }) {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -2424,11 +2424,14 @@ function AuthScreen({ onLogin, serverError }) {
 
       if (authError) throw authError;
 
-      // 2) Fetch profile from users table (we store email in username for now)
+      const authUserId = authData?.user?.id;
+      if (!authUserId) throw new Error("تعذر تحديد هوية المستخدم بعد تسجيل الدخول");
+
+      // 2) Fetch profile by id (best practice)
       const { data: users, error: profileError } = await supabase
         .from("users")
         .select("*")
-        .eq("username", normalizeEmail(formData.email))
+        .eq("id", authUserId)
         .limit(1);
 
       if (profileError) throw profileError;
@@ -2438,7 +2441,6 @@ function AuthScreen({ onLogin, serverError }) {
 
         if (!user.approved) {
           setError("لم تتم الموافقة على حسابك بعد من قبل مدير المؤسسة");
-          // Optional: sign out if not approved
           try { await supabase.auth.signOut(); } catch (_) {}
         } else {
           onLogin(user);
@@ -2471,7 +2473,7 @@ function AuthScreen({ onLogin, serverError }) {
     try {
       const email = normalizeEmail(formData.email);
 
-      // 0) Check if email already exists in app users table
+      // 0) Check if email already exists in app users table (username stores email for now)
       const { data: existing, error: existingError } = await supabase
         .from("users")
         .select("id")
@@ -2495,17 +2497,20 @@ function AuthScreen({ onLogin, serverError }) {
       if (joinExisting) {
         // --- JOIN EXISTING AGENCY FLOW ---
 
+        const agencyId = Number(formData.agencyId);
+        if (!Number.isFinite(agencyId)) throw new Error("كود المؤسسة غير صالح");
+
         // 2) Verify Agency Exists
         const { data: agency, error: agencyFetchError } = await supabase
           .from("agencies")
           .select("id")
-          .eq("id", formData.agencyId)
-          .single();
+          .eq("id", agencyId)
+          .maybeSingle();
 
         if (agencyFetchError) throw agencyFetchError;
         if (!agency) throw new Error("كود المؤسسة غير صحيح. تأكد من الرقم مع المدير.");
 
-        // 3) Create user profile in app table (Journalist, Approved=False)
+        // 3) Upsert user profile (Journalist, Approved=False)
         const newUser = {
           id: authUserId,
           name: formData.name,
@@ -2513,12 +2518,15 @@ function AuthScreen({ onLogin, serverError }) {
           role: "journalist",
           section: "عام",
           approved: false, // Needs admin approval
-          agency_id: formData.agencyId,
+          agency_id: agencyId,
           daily_target: 10
         };
 
-        const { error: insertError } = await supabase.from("users").insert([newUser]);
-        if (insertError) throw insertError;
+        const { error: upsertError } = await supabase
+          .from("users")
+          .upsert([newUser], { onConflict: "id" });
+
+        if (upsertError) throw upsertError;
 
         alert("تم إرسال طلب الانضمام بنجاح! يرجى انتظار تفعيل الحساب من قبل مدير المؤسسة.");
         setIsRegistering(false);
@@ -2527,6 +2535,7 @@ function AuthScreen({ onLogin, serverError }) {
 
         // Optional: sign out until approved
         try { await supabase.auth.signOut(); } catch (_) {}
+
       } else {
         // --- CREATE NEW AGENCY FLOW ---
 
@@ -2547,7 +2556,7 @@ function AuthScreen({ onLogin, serverError }) {
 
         if (settingsError) throw settingsError;
 
-        // 4) Create Admin profile in app table
+        // 4) Upsert Admin profile in app table
         const newUser = {
           id: authUserId,
           name: formData.name,
@@ -2559,8 +2568,11 @@ function AuthScreen({ onLogin, serverError }) {
           daily_target: 0
         };
 
-        const { error: insertError } = await supabase.from("users").insert([newUser]);
-        if (insertError) throw insertError;
+        const { error: upsertError } = await supabase
+          .from("users")
+          .upsert([newUser], { onConflict: "id" });
+
+        if (upsertError) throw upsertError;
 
         onLogin(newUser);
       }
@@ -2648,7 +2660,6 @@ function AuthScreen({ onLogin, serverError }) {
             </>
           )}
 
-          {/* EMAIL (replaces username) */}
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">البريد الإلكتروني</label>
             <input
