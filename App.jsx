@@ -2394,16 +2394,16 @@ function AdminDashboard({ user, departments, setDepartments, announcement, setAn
 }
 
 // ==========================================
-// 4. Auth Screen (SaaS Edition) - UPDATED (Supabase Auth Email/Password) - FIXED
+// 4. Auth Screen (SaaS Edition) - AUTO LOGIN + SAFE UPSERT
 // ==========================================
 function AuthScreen({ onLogin, serverError }) {
   const [isRegistering, setIsRegistering] = useState(false);
-  const [joinExisting, setJoinExisting] = useState(false); // New state to toggle join mode
+  const [joinExisting, setJoinExisting] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
     name: "",
-    agencyId: "" // For joining existing agency
+    agencyId: ""
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -2416,18 +2416,19 @@ function AuthScreen({ onLogin, serverError }) {
     setError("");
 
     try {
-      // 1) Auth login
+      const email = normalizeEmail(formData.email);
+
+      // 1) Login via Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: normalizeEmail(formData.email),
+        email,
         password: formData.password
       });
-
       if (authError) throw authError;
 
       const authUserId = authData?.user?.id;
       if (!authUserId) throw new Error("تعذر تحديد هوية المستخدم بعد تسجيل الدخول");
 
-      // 2) Fetch profile by id (best practice)
+      // 2) Fetch profile by id (أفضل من username)
       const { data: users, error: profileError } = await supabase
         .from("users")
         .select("*")
@@ -2446,7 +2447,6 @@ function AuthScreen({ onLogin, serverError }) {
           onLogin(user);
         }
       } else {
-        // Auth succeeded but no profile in app table
         setError("تم تسجيل الدخول لكن لا يوجد ملف مستخدم في النظام. تواصل مع المدير.");
       }
     } catch (err) {
@@ -2473,7 +2473,7 @@ function AuthScreen({ onLogin, serverError }) {
     try {
       const email = normalizeEmail(formData.email);
 
-      // 0) Check if email already exists in app users table (username stores email for now)
+      // 0) منع تكرار الإيميل في جدول users
       const { data: existing, error: existingError } = await supabase
         .from("users")
         .select("id")
@@ -2483,49 +2483,29 @@ function AuthScreen({ onLogin, serverError }) {
       if (existingError) throw existingError;
       if (existing && existing.length > 0) throw new Error("البريد الإلكتروني مستخدم مسبقاً");
 
-      // 1) Create auth user
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      // 1) Sign Up
+      const { error: signUpError } = await supabase.auth.signUp({
         email,
         password: formData.password
       });
-      // ✅ الخطوة الثانية: تسجيل دخول فوري بعد التسجيل
-const { data: loginData, error: loginError } =
-  await supabase.auth.signInWithPassword({
-    email,
-    password: formData.password
-  });
-      const newUser = {
-  id: authUserId,
-  name: formData.name,
-  username: email,
-  role: "admin", // أو journalist
-  approved: true,
-  agency_id: newAgencyId
-};
-
-await supabase.from("users").upsert([newUser]);
-
-if (loginError) throw loginError;
-
-// دلوقتي session موجودة
-const authUserId = loginData?.user?.id;
-if (!authUserId) {
-  throw new Error("تعذر إنشاء جلسة للمستخدم بعد التسجيل");
-}
-      
-
       if (signUpError) throw signUpError;
 
-      const authUserId = signUpData?.user?.id;
-      if (!authUserId) throw new Error("تعذر إنشاء المستخدم في نظام المصادقة");
+      // ✅ 2) AUTO LOGIN مباشرة بعد التسجيل (دي اللي بتحل RLS/session)
+      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password: formData.password
+      });
+      if (loginError) throw loginError;
+
+      const authUserId = loginData?.user?.id;
+      if (!authUserId) throw new Error("تعذر إنشاء جلسة للمستخدم بعد التسجيل");
 
       if (joinExisting) {
         // --- JOIN EXISTING AGENCY FLOW ---
-
         const agencyId = Number(formData.agencyId);
         if (!Number.isFinite(agencyId)) throw new Error("كود المؤسسة غير صالح");
 
-        // 2) Verify Agency Exists
+        // 3) Verify agency exists
         const { data: agency, error: agencyFetchError } = await supabase
           .from("agencies")
           .select("id")
@@ -2535,14 +2515,14 @@ if (!authUserId) {
         if (agencyFetchError) throw agencyFetchError;
         if (!agency) throw new Error("كود المؤسسة غير صحيح. تأكد من الرقم مع المدير.");
 
-        // 3) Upsert user profile (Journalist, Approved=False)
+        // 4) Upsert profile (Pending)
         const newUser = {
           id: authUserId,
           name: formData.name,
-          username: email, // store email here for now
+          username: email,
           role: "journalist",
           section: "عام",
-          approved: false, // Needs admin approval
+          approved: false,
           agency_id: agencyId,
           daily_target: 10
         };
@@ -2558,34 +2538,32 @@ if (!authUserId) {
         setJoinExisting(false);
         setFormData({ email: "", password: "", name: "", agencyId: "" });
 
-        // Optional: sign out until approved
+        // (اختياري) تسيبه داخل أو تخرجه لحد الموافقة
         try { await supabase.auth.signOut(); } catch (_) {}
 
       } else {
-        // --- CREATE NEW AGENCY FLOW ---
-
-        // Generate new agency ID
+        // --- CREATE NEW AGENCY FLOW (ADMIN) ---
         const newAgencyId = Date.now();
 
-        // 2) Create Agency Record
+        // 3) Create agency
         const { error: agencyError } = await supabase
           .from("agencies")
           .insert([{ id: newAgencyId, name: `مؤسسة ${formData.name}` }]);
 
         if (agencyError) throw new Error("فشل إنشاء سجل المؤسسة");
 
-        // 3) Create Settings
+        // 4) Create settings
         const { error: settingsError } = await supabase
           .from("agency_settings")
           .insert([{ agency_id: newAgencyId }]);
 
         if (settingsError) throw settingsError;
 
-        // 4) Upsert Admin profile in app table
+        // 5) Upsert admin profile
         const newUser = {
           id: authUserId,
           name: formData.name,
-          username: email, // store email here for now
+          username: email,
           role: "admin",
           section: "إدارة",
           approved: true,
