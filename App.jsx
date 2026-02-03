@@ -1138,1332 +1138,687 @@ function JournalistDashboard({ user, departments, articleStatuses, theme }) {
 }
 
 // ==========================================
-// 5. Admin Dashboard 
+// 5. Admin Dashboard (CLEAN + SAFE)
 // ==========================================
-function AdminDashboard({ user, departments, setDepartments, announcement, setAnnouncement, articleStatuses, setArticleStatuses, logoUrl, setLogoUrl, tickerSpeed, setTickerSpeed, tickerFontSize, setTickerFontSize, theme, setTheme }) {
+function AdminDashboard({
+  user,
+  departments,
+  setDepartments,
+  announcement,
+  setAnnouncement,
+  articleStatuses,
+  setArticleStatuses,
+  logoUrl,
+  setLogoUrl,
+  tickerSpeed,
+  setTickerSpeed,
+  tickerFontSize,
+  setTickerFontSize,
+  theme,
+  setTheme
+}) {
   const notifiedRef = useRef(false);
+
   const [users, setUsers] = useState([]);
   const [articles, setArticles] = useState([]);
-  const [activeTab, setActiveTab] = useState('stats');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dateFilterMode, setDateFilterMode] = useState('today');
+  const [activeTab, setActiveTab] = useState("users");
 
-  const [statsFilterType, setStatsFilterType] = useState('all'); 
-  const [statsFilterValue, setStatsFilterValue] = useState(''); 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
+  const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
+  const [dateFilterMode, setDateFilterMode] = useState("today");
 
   const [editingUser, setEditingUser] = useState(null);
-  const [resetPassUser, setResetPassUser] = useState(null);
-  const [newPassword, setNewPassword] = useState('');
-  
-  const [targetDept, setTargetDept] = useState(departments ? departments[0] : '');
-  const [targetValue, setTargetValue] = useState(10); 
-  const [newDeptName, setNewDeptName] = useState('');
-  const [newStatusName, setNewStatusName] = useState('');
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [updatingTarget, setUpdatingTarget] = useState(false);
-
-  // Content Review Vars
-  const [filterSection, setFilterSection] = useState('الكل');
-  const [reviewArticle, setReviewArticle] = useState(null); 
-  const [reviewData, setReviewData] = useState({ rating: 0, note: '' });
-  const [filterJournalist, setFilterJournalist] = useState('الكل');
-  const [isPrintMode, setIsPrintMode] = useState(false);
-  const [printTarget, setPrintTarget] = useState(''); 
-  
-  const [drillDownUser, setDrillDownUser] = useState(null); 
-  const [showOnlineModal, setShowOnlineModal] = useState(false);
-  const [isEditingContent, setIsEditingContent] = useState(false);
-  const [contentToEdit, setContentToEdit] = useState(null);
 
   // Idea Bank
-  const [ideaText, setIdeaText] = useState('');
-  const [ideaTarget, setIdeaTarget] = useState(''); 
-  const [ideaType, setIdeaType] = useState('section'); 
   const [sentIdeas, setSentIdeas] = useState([]);
   const [expandedIdea, setExpandedIdea] = useState(null);
-  const [ideaReply, setIdeaReply] = useState('');
 
   // Activity Log
   const [activityLogs, setActivityLogs] = useState([]);
-  
-  // CSV Import State
-  const [isImporting, setIsImporting] = useState(false);
+
+  // Settings
+  const [newDeptName, setNewDeptName] = useState("");
+  const [newStatusName, setNewStatusName] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
 
   // Permission Check
-  const isAdmin = user.role === 'admin';
-  const themeClasses = THEMES[theme];
+  const isAdmin = user?.role === "admin";
+  const themeClasses = (typeof THEMES !== "undefined" && THEMES[theme]) ? THEMES[theme] : { primary: "bg-blue-800" };
 
-  // Ensure arrays are safe
+  // Safe arrays
   const safeDepartments = Array.isArray(departments) ? departments : [];
   const safeUsers = Array.isArray(users) ? users : [];
   const safeArticles = Array.isArray(articles) ? articles : [];
+  const safeIdeas = Array.isArray(sentIdeas) ? sentIdeas : [];
+  const safeLogs = Array.isArray(activityLogs) ? activityLogs : [];
 
-  // --- Filtering Helper ---
+  // Helpers
   const setQuickDate = (type) => {
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      let start = today;
-      let end = today;
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
+    let start = today;
+    let end = today;
 
-      if (type === 'today') {
-      } else if (type === 'month') {
-          start = today.substring(0, 7) + '-01';
-      } else if (type === 'year') {
-          start = today.substring(0, 4) + '-01-01';
-      } else if (type === 'all') {
-          start = '2023-01-01'; 
-      }
-      setStartDate(start);
-      setEndDate(end);
-      setDateFilterMode(type);
+    if (type === "today") {
+      // same day
+    } else if (type === "month") {
+      start = today.substring(0, 7) + "-01";
+    } else if (type === "year") {
+      start = today.substring(0, 4) + "-01-01";
+    } else if (type === "all") {
+      start = "2023-01-01";
+    }
+    setStartDate(start);
+    setEndDate(end);
+    setDateFilterMode(type);
   };
+
+  const pendingUsers = safeUsers.filter((u) => u && u.approved === false);
+  const activeUsers = safeUsers
+    .filter((u) => u && u.approved !== false && u.role !== "admin")
+    .filter((u) => {
+      const s = (searchTerm || "").toLowerCase();
+      const name = (u.name || "").toLowerCase();
+      const username = (u.username || "").toLowerCase();
+      return !s || name.includes(s) || username.includes(s);
+    });
 
   const getFilteredArticles = () => {
     let base = safeArticles;
-    base = base.filter(a => {
-        if (!a.date_string) return false;
-        return a.date_string >= startDate && a.date_string <= endDate;
+
+    base = base.filter((a) => {
+      if (!a || !a.date_string) return false;
+      return a.date_string >= startDate && a.date_string <= endDate;
     });
 
-    if (statsFilterType === 'journalist' && statsFilterValue) {
-        base = base.filter(a => a.journalist_name === statsFilterValue);
-    } else if (statsFilterType === 'section' && statsFilterValue) {
-        base = base.filter(a => a.section === statsFilterValue);
-    }
     return base;
   };
-  
+
   const filteredArticles = getFilteredArticles();
-  const pendingUsers = safeUsers.filter(u => u.approved === false);
-  const activeUsers = safeUsers.filter(u => u.approved !== false && u.role !== 'admin').filter(u => u.name && (u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.username.toLowerCase().includes(searchTerm.toLowerCase())));
-  
-  const isOnline = (lastActive) => {
-    if (!lastActive) return false;
-    const lastDate = new Date(lastActive);
-    if(isNaN(lastDate.getTime())) return false;
-    const now = new Date();
-    const diffSeconds = (now.getTime() - lastDate.getTime()) / 1000;
-    return diffSeconds <= ONLINE_THRESHOLD; 
-  };
 
-  const reviewArticles = safeArticles.filter(a => {
-      if (a.date_string < startDate || a.date_string > endDate) return false;
-      if (filterJournalist !== 'الكل') {
-          if (a.journalist_name !== filterJournalist && a.journalist_username !== filterJournalist) return false;
-      }
-      if (filterSection !== 'الكل' && a.section !== filterSection) return false;
-      return true;
-  });
+  // =========================
+  // Fetch Data (ONLY ONE VERSION)
+  // =========================
+  const fetchData = async () => {
+    try {
+      // Users
+      const { data: uData, error: uErr } = await supabase
+        .from("users")
+        .select("*")
+        .eq("agency_id", user.agency_id);
 
-  const getFilteredActivity = () => {
-    let logs = activityLogs.filter(log => {
-        if (!log.date_string) return false;
-        return log.date_string >= startDate && log.date_string <= endDate;
-    });
+      if (uErr) throw uErr;
+      setUsers(Array.isArray(uData) ? uData : []);
 
-    if (filterJournalist !== 'الكل') {
-        logs = logs.filter(log => log.user_name === filterJournalist);
+      // Articles
+      const { data: aData, error: aErr } = await supabase
+        .from("daily_production")
+        .select("*")
+        .eq("agency_id", user.agency_id);
+
+      if (aErr) throw aErr;
+
+      const list = Array.isArray(aData) ? aData : [];
+      list.sort((x, y) => new Date(y.timestamp).getTime() - new Date(x.timestamp).getTime());
+      setArticles(list);
+
+      // Ideas
+      const { data: ideasData, error: ideasErr } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("agency_id", user.agency_id)
+        .eq("priority", "idea");
+
+      if (ideasErr) throw ideasErr;
+      setSentIdeas(Array.isArray(ideasData) ? ideasData : []);
+
+      // Activity Logs
+      const { data: actData, error: actErr } = await supabase
+        .from("activity_logs")
+        .select("*")
+        .eq("agency_id", user.agency_id);
+
+      if (actErr) throw actErr;
+      setActivityLogs(Array.isArray(actData) ? actData : []);
+    } catch (e) {
+      console.error("Data fetch failed", e);
     }
-    return logs.map(log => {
-       const sessions = log.sessions || [];
-       const loginCount = sessions.length;
-       const totalDurationMinutes = sessions.reduce((acc, sess) => {
-           if (!sess || !sess.start || !sess.end) return acc;
-           const start = new Date(sess.start).getTime();
-           const end = new Date(sess.end).getTime();
-           if(isNaN(start) || isNaN(end)) return acc;
-           return acc + (end - start);
-       }, 0) / 1000 / 60;
-
-       return { ...log, loginCount, totalDurationMinutes };
-    });
   };
 
-  const filteredActivityLogs = getFilteredActivity();
-
-  const getWeeklyData = () => {
-    const last7Days = [...Array(7)].map((_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        return d.toISOString().split('T')[0];
-    }).reverse();
-
-    return last7Days.map(date => {
-        const count = filteredArticles.filter(a => a.date_string === date).length;
-        const dayName = new Date(date).toLocaleDateString('ar-EG', { weekday: 'short' });
-        return { label: dayName, value: count }; 
-    });
-  };
-
-  const sectionData = safeDepartments.map(dept => ({
-      label: dept,
-      value: filteredArticles.filter(a => a.section === dept).length
-  }));
-
-  const getTopProducers = () => {
-    const counts = {};
-    filteredArticles.forEach(a => {
-      const name = a.journalist_name || 'Unknown';
-      counts[name] = (counts[name] || 0) + 1;
-    });
-    return Object.entries(counts)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([name, count]) => ({ name, value: count }));
-  };
-
-  const getTopRated = () => {
-    const ratings = {};
-    filteredArticles.forEach(a => {
-      if (a.rating && a.rating > 0) {
-        const name = a.journalist_name || 'Unknown';
-        if (!ratings[name]) ratings[name] = { total: 0, count: 0 };
-        ratings[name].total += a.rating;
-        ratings[name].count += 1;
-      }
-    });
-    return Object.entries(ratings)
-      .map(([name, data]) => ({ name, value: data.total / data.count }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  };
-  
-  const getPerformanceData = () => {
-      return activeUsers.map(user => {
-          const userArticles = filteredArticles.filter(a => 
-              a.journalist_username === user.username || a.journalist_name === user.name
-          );
-          const achieved = userArticles.length;
-          // Calculate Target based on date range (approximate)
-          const daysDiff = Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1);
-          const totalTarget = (user.daily_target || DEFAULT_DAILY_TARGET) * daysDiff;
-          
-          const percent = Math.round((achieved / totalTarget) * 100);
-          const autoRating = Math.min(5, Math.round((percent / 100) * 5));
-
-          return {
-              name: user.name,
-              section: user.section,
-              target: totalTarget,
-              achieved: achieved,
-              percent: percent,
-              autoRating: autoRating
-          };
-      }).sort((a,b) => b.percent - a.percent);
-  };
-
-  const performanceData = getPerformanceData();
-
-  const getQuickStats = () => {
-    const totalArticles = filteredArticles.length;
-    const onlineUsers = safeUsers.filter(u => isOnline(u.last_active));
-    const onlineUsersCount = onlineUsers.length;
-    
-    const totalTarget = safeUsers.filter(u => u.role !== 'admin' && u.approved).reduce((acc, user) => acc + (user.daily_target || DEFAULT_DAILY_TARGET), 0);
-    const achievementRate = totalTarget > 0 ? Math.round((totalArticles / totalTarget) * 100) : 0;
-
-    const topSection = sectionData.length > 0 
-        ? sectionData.reduce((prev, current) => (prev.value > current.value) ? prev : current, {label: '-', value: 0})
-        : {label: '-', value: 0};
-        
-    return { totalArticles, onlineUsersCount, topSection, achievementRate, totalTarget, onlineUsers };
-  };
-  
-  const weeklyData = getWeeklyData();
-  const topProducers = getTopProducers();
-  const topRated = getTopRated();
-  const quickStats = getQuickStats();
-
-  const notifiedRef = useRef(false);
-
-const fetchData = async () => {
-  try {
-    // 1) Agency
-    const { data: aData, error: aErr } = await supabase
-      .from("agencies")
-      .select("*")
-      .eq("id", user.agency_id)
-      .single();
-    if (aErr) throw aErr;
-    setAgency(aData);
-
-    // 2) Users
-    const { data: uData, error: uErr } = await supabase
-      .from("users")
-      .select("*")
-      .eq("agency_id", user.agency_id);
-    if (uErr) throw uErr;
-
-    const safeUsers = Array.isArray(uData) ? uData : [];
-    setUsers(safeUsers);
-
-    const pending = safeUsers.filter((u) => u.approved === false);
-    setPendingUsers(pending);
-
-    // 3) Messages
-    const { data: mData, error: mErr } = await supabase
-      .from("management_messages")
-      .select("*")
-      .eq("agency_id", user.agency_id)
-      .order("created_at", { ascending: false });
-    if (mErr) throw mErr;
-    setMessages(Array.isArray(mData) ? mData : []);
-
-    // 4) Settings
-    const { data: sData, error: sErr } = await supabase
-      .from("agency_settings")
-      .select("*")
-      .eq("agency_id", user.agency_id)
-      .maybeSingle();
-    if (sErr) throw sErr;
-    if (sData) setSettings(sData);
-
-    // 5) Paper Plans
-    const { data: pData, error: pErr } = await supabase
-      .from("paper_plans")
-      .select("*")
-      .eq("agency_id", user.agency_id)
-      .order("date", { ascending: false });
-    if (pErr) throw pErr;
-    setPaperPlans(Array.isArray(pData) ? pData : []);
-  } catch (e) {
-    console.error(e);
-  }
-};
-
-// تحميل البيانات أول مرة + تحديث دوري (مستقر)
-useEffect(() => {
-  fetchData();
-  const i = setInterval(fetchData, 8000);
-  return () => clearInterval(i);
-}, [user.agency_id]);
-
-// إشعار الأدمن عند وصول طلبات انضمام (مرة واحدة)
-useEffect(() => {
-  if (pendingUsers.length > 0 && !notifiedRef.current) {
-    alert(`يوجد ${pendingUsers.length} طلب(ات) انضمام جديدة`);
-    notifiedRef.current = true;
-  }
-  if (pendingUsers.length === 0) {
-    notifiedRef.current = false;
-  }
-}, [pendingUsers.length]);
-
-        const { data: aData } = await supabase.from('daily_production').select('*').eq('agency_id', user.agency_id);
-        if(aData) setArticles(aData.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-
-        const { data: mData } = await supabase.from('messages').select('*').eq('agency_id', user.agency_id).eq('priority', 'idea');
-        if(mData) setSentIdeas(mData);
-
-        const { data: actData } = await supabase.from('activity_logs').select('*').eq('agency_id', user.agency_id);
-        if(actData) setActivityLogs(actData);
-
-    } catch(e) { console.error("Data fetch failed", e); }
-  };
-
-  useEffect(() => { 
-    fetchData(); 
-    const interval = setInterval(fetchData, 5000);
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 6000);
     return () => clearInterval(interval);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.agency_id]);
 
+  // Notify once when pending exists
+  useEffect(() => {
+    if (pendingUsers.length > 0 && !notifiedRef.current) {
+      notifiedRef.current = true;
+      alert(`يوجد ${pendingUsers.length} طلب/طلبات انضمام جديدة`);
+    }
+    if (pendingUsers.length === 0) {
+      notifiedRef.current = false;
+    }
+  }, [pendingUsers.length]);
+
+  // =========================
+  // Actions
+  // =========================
   const handleApprove = async (targetUser) => {
-    const confirmMsg = `هل تريد الموافقة على انضمام الموظف التالي؟\n\n- الاسم: ${targetUser.name}\n- اسم المستخدم: ${targetUser.username}\n- الوظيفة: ${targetUser.role}\n- القسم: ${targetUser.section}`;
+    if (!targetUser) return;
+    const confirmMsg = `هل تريد الموافقة على انضمام الموظف التالي؟\n\n- الاسم: ${targetUser.name}\n- البريد: ${targetUser.username}`;
     if (!window.confirm(confirmMsg)) return;
 
-    await supabase.from('users').update({ approved: true }).eq('id', targetUser.id);
+    const { error } = await supabase
+      .from("users")
+      .update({ approved: true })
+      .eq("id", targetUser.id)
+      .eq("agency_id", user.agency_id);
+
+    if (error) {
+      alert(error.message || "فشل الموافقة");
+      return;
+    }
     fetchData();
   };
 
   const handleReject = async (id) => {
-    if (window.confirm('حذف هذا الطلب نهائياً؟')) {
-      await supabase.from('users').delete().eq('id', id);
-      fetchData();
+    if (!id) return;
+    if (!window.confirm("حذف هذا الطلب نهائياً؟")) return;
+
+    const { error } = await supabase
+      .from("users")
+      .delete()
+      .eq("id", id)
+      .eq("agency_id", user.agency_id);
+
+    if (error) {
+      alert(error.message || "فشل الرفض");
+      return;
     }
+    fetchData();
   };
 
   const handleUpdateUser = async () => {
-      await supabase.from('users').update({ 
-          name: editingUser.name, 
-          role: editingUser.role, 
-          section: editingUser.section,
-          daily_target: Number(editingUser.daily_target) 
-        }).eq('id', editingUser.id);
-      setEditingUser(null); fetchData();
-  };
-  
-  const handleUpdateDeptTarget = async () => {
-     if (!window.confirm(`هل أنت متأكد من تغيير الهدف اليومي لقسم ${targetDept} إلى ${targetValue}؟`)) return;
-     const targetUsers = safeUsers.filter(u => u.section === targetDept && u.role !== 'admin');
-     if(targetUsers.length === 0) return alert('لا يوجد موظفين');
-     
-     for (const u of targetUsers) {
-         await supabase.from('users').update({ daily_target: Number(targetValue) }).eq('id', u.id);
-     }
-     alert('تم التحديث'); fetchData();
+    if (!editingUser) return;
+
+    const payload = {
+      name: editingUser.name,
+      role: editingUser.role,
+      section: editingUser.section,
+      daily_target: Number(editingUser.daily_target || 0)
+    };
+
+    const { error } = await supabase
+      .from("users")
+      .update(payload)
+      .eq("id", editingUser.id)
+      .eq("agency_id", user.agency_id);
+
+    if (error) {
+      alert(error.message || "فشل تحديث المستخدم");
+      return;
+    }
+    setEditingUser(null);
+    fetchData();
   };
 
-  const handleResetPassword = async () => {
-      if (!resetPassUser || !newPassword) return;
-      await supabase.from('users').update({ password: newPassword }).eq('id', resetPassUser.id);
-      setResetPassUser(null); setNewPassword(''); alert('تم'); fetchData();
-  };
-
-  // Settings Handlers
   const saveSettings = async (newDepts, newAnnouncement, newStatuses) => {
     setSavingSettings(true);
     try {
-        const { error } = await supabase.from('agency_settings').upsert({
-             agency_id: user.agency_id,
-             departments: newDepts,
-             announcement: newAnnouncement,
-             article_statuses: newStatuses,
-             logo_url: logoUrl,
-             ticker_speed: tickerSpeed,
-             ticker_font_size: tickerFontSize,
-             theme_color: theme // Save theme
-        });
-        if (error) throw error;
-        
-        setDepartments(newDepts);
-        setAnnouncement(newAnnouncement);
-        if(newStatuses) setArticleStatuses(newStatuses);
-        alert('تم حفظ الإعدادات بنجاح');
-    } catch (e) { console.error(e); alert('فشل الحفظ'); } finally { setSavingSettings(false); }
+      const { error } = await supabase.from("agency_settings").upsert({
+        agency_id: user.agency_id,
+        departments: newDepts,
+        announcement: newAnnouncement,
+        article_statuses: newStatuses,
+        logo_url: logoUrl,
+        ticker_speed: tickerSpeed,
+        ticker_font_size: tickerFontSize,
+        theme_color: theme
+      });
+
+      if (error) throw error;
+
+      setDepartments(newDepts);
+      setAnnouncement(newAnnouncement);
+      if (newStatuses) setArticleStatuses(newStatuses);
+
+      alert("تم حفظ الإعدادات بنجاح ✅");
+    } catch (e) {
+      console.error(e);
+      alert("فشل حفظ الإعدادات");
+    } finally {
+      setSavingSettings(false);
+    }
   };
 
   const handleLogoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) { alert("حجم الصورة كبير جداً. يرجى استخدام صورة أقل من 2 ميجابايت."); return; }
-      const reader = new FileReader();
-      reader.onloadend = () => { setLogoUrl(reader.result); };
-      reader.readAsDataURL(file);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert("حجم الصورة كبير جداً. استخدم صورة أقل من 2MB.");
+      return;
     }
-  };
-  
-  const handleAddDept = () => { if(newDeptName && !safeDepartments.includes(newDeptName)) { saveSettings([...safeDepartments, newDeptName], announcement, articleStatuses); setNewDeptName(''); }};
-  const handleDeleteDept = (dept) => { if(window.confirm('حذف؟')) saveSettings(safeDepartments.filter(d=>d!==dept), announcement, articleStatuses); };
-  const handleAddStatus = () => { if(newStatusName && !articleStatuses.includes(newStatusName)) { saveSettings(safeDepartments, announcement, [...articleStatuses, newStatusName]); setNewStatusName(''); }};
-  const handleDeleteStatus = (status) => { if(window.confirm('حذف؟')) saveSettings(safeDepartments, announcement, articleStatuses.filter(s=>s!==status)); };
 
-  // --- RESTORED CSV HANDLERS (Defined inside AdminDashboard to fix ReferenceError) ---
-  const handleImportContentCSV = async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-      setIsImporting(true);
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-          const text = e.target.result;
-          const rows = text.split('\n').filter(r => r.trim() !== '');
-          const dataToInsert = [];
-          
-          for (let i = 1; i < rows.length; i++) {
-              const cols = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-              if(cols.length < 2) continue; 
-
-              const journalistName = cols[0] || 'Unknown';
-              const headline = cols[1] || 'No Headline';
-              const platform = cols[2] || 'موقع إلكتروني';
-              const section = cols[3] || 'عام';
-              const status = cols[4] || 'نشرت';
-              const rating = parseInt(cols[5]) || 0;
-              const dateString = cols[6] || new Date().toISOString().split('T')[0];
-              const note = cols[8] || '';
-              const url = cols[9] || '';
-
-              const journalistUser = safeUsers.find(u => u.name === journalistName);
-
-              dataToInsert.push({
-                  id: String(Date.now() + i),
-                  agency_id: user.agency_id,
-                  journalist_name: journalistName,
-                  journalist_username: journalistUser ? journalistUser.username : 'imported_user',
-                  headline: headline,
-                  url: url,
-                  section: section,
-                  status: status,
-                  platform: platform,
-                  date_string: dateString,
-                  timestamp: new Date().toISOString(),
-                  rating: rating,
-                  note: note
-              });
-          }
-
-          if (dataToInsert.length > 0) {
-              const { error } = await supabase.from('daily_production').insert(dataToInsert);
-              if (error) {
-                  alert('حدث خطأ أثناء الاستيراد: ' + error.message);
-              } else {
-                  alert(`تم استيراد ${dataToInsert.length} خبر (شامل التقييمات) بنجاح!`);
-                  fetchData();
-              }
-          } else {
-              alert('لم يتم العثور على بيانات صالحة في الملف.');
-          }
-          setIsImporting(false);
-          event.target.value = null; 
-      };
-      reader.readAsText(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setLogoUrl(reader.result);
+    reader.readAsDataURL(file);
   };
 
-  const handleImportUsersCSV = async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-      setIsImporting(true);
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-          const text = e.target.result;
-          const rows = text.split('\n').filter(r => r.trim() !== '');
-          const usersToInsert = [];
-          
-          for (let i = 1; i < rows.length; i++) {
-              const cols = rows[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-              if(cols.length < 3) continue;
-
-              const name = cols[0];
-              const username = cols[1]?.toLowerCase();
-              const password = cols[2];
-              const role = cols[3] || 'journalist';
-              const section = cols[4] || 'عام';
-              const dailyTarget = parseInt(cols[5]) || 10;
-
-              if(name && username && password) {
-                  usersToInsert.push({
-                      id: String(Date.now() + i),
-                      agency_id: user.agency_id,
-                      name: name,
-                      username: username,
-                      password: password,
-                      role: role,
-                      section: section,
-                      daily_target: dailyTarget,
-                      approved: true 
-                  });
-              }
-          }
-
-          if (usersToInsert.length > 0) {
-              try {
-                  const { error } = await supabase.from('users').insert(usersToInsert);
-                  if (error) throw error;
-                  alert(`تم استيراد ${usersToInsert.length} موظف بنجاح!`);
-                  fetchData();
-              } catch(err) {
-                  alert('حدث خطأ. ربما يوجد "اسم مستخدم" مكرر بالفعل. تفاصيل: ' + err.message);
-              }
-          } else {
-              alert('لا توجد بيانات صالحة. تأكد من ترتيب الأعمدة: الاسم، اليوزر، الباسورد، الوظيفة، القسم، التارجت');
-          }
-          setIsImporting(false);
-          event.target.value = null; 
-      };
-      reader.readAsText(file);
+  const logout = async () => {
+    try { await supabase.auth.signOut(); } catch (_) {}
+    window.location.reload();
   };
 
-  // Review & Content Handlers
-  const openReviewModal = (article) => { setReviewArticle(article); setReviewData({ rating: article.rating || 0, note: article.note || '' }); };
-  const handleSaveReview = async () => { await supabase.from('daily_production').update(reviewData).eq('id', reviewArticle.id); setReviewArticle(null); fetchData(); };
-  const handleAdminDeleteContent = async (id) => { if(window.confirm('حذف؟')) { await supabase.from('daily_production').delete().eq('id', id); fetchData(); }};
-  const openAdminEditContent = (article) => { setContentToEdit(article); setIsEditingContent(true); };
-  const handleSaveAdminEditContent = async () => { await supabase.from('daily_production').update({ headline: contentToEdit.headline, url: contentToEdit.url, section: contentToEdit.section, platform: contentToEdit.platform, date_string: contentToEdit.date_string }).eq('id', contentToEdit.id); setIsEditingContent(false); setContentToEdit(null); fetchData(); };
-  
-  // Ideas Handlers
-  const handleSendIdea = async () => { 
-      await supabase.from('messages').insert([{ 
-          id: String(Date.now()), 
-          agency_id: user.agency_id,
-          from_user_id: user.id, 
-          from_name: user.name, 
-          text: ideaText, 
-          priority: 'idea', 
-          timestamp: new Date().toISOString(), 
-          to_user_id: ideaType === 'user'?ideaTarget:null, 
-          to_section: ideaType==='section'?ideaTarget:null, 
-          replies:[] 
-      }]); 
-      setIdeaText(''); alert('تم'); fetchData(); 
-  };
-  const handleReplyToIdeaAdmin = async (idea) => { const updated = [...(idea.replies||[]), {text: ideaReply, sender: user.name, time: new Date().toISOString()}]; await supabase.from('messages').update({replies: updated}).eq('id', idea.id); setIdeaReply(''); fetchData(); };
-
-  const getDrillDownArticles = () => {
-      if (!drillDownUser) return [];
-      const userArts = filteredArticles.filter(a => a.journalist_name === drillDownUser.user);
-      if (drillDownUser.type === 'rated') return userArts.filter(a => a.rating > 0);
-      return userArts;
-  };
-
-  const handleExportUsersCSV = () => {
-      const headers = ['الاسم', 'اسم المستخدم', 'القسم', 'الوظيفة', 'الحالة', 'آخر نشاط'];
-      const rows = activeUsers.map(u => [
-          escapeCsv(u.name),
-          escapeCsv(u.username),
-          escapeCsv(u.section),
-          escapeCsv(u.role),
-          isOnline(u.last_active) ? 'متصل' : 'غير متصل',
-          escapeCsv(u.last_active ? new Date(u.last_active).toLocaleString() : '-')
-      ]);
-      const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `users_list.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-  };
-
+  // =========================
+  // UI
+  // =========================
   return (
-    <div className={`space-y-6 ${isPrintMode ? 'bg-white' : ''}`}>
-      {!isPrintMode && (
-      <>
-        <div className="hidden md:flex gap-4 bg-white p-3 rounded-xl shadow-sm border border-blue-200 overflow-x-auto no-print">
-            <button onClick={() => setActiveTab('stats')} className={`flex-1 py-2 rounded-lg font-bold flex justify-center gap-2 transition whitespace-nowrap px-4 ${activeTab === 'stats' ? `${themeClasses.primary} text-white` : 'hover:bg-gray-100 text-gray-600'}`}><PieChart className="h-5 w-5" /> الإحصائيات</button>
-            <button onClick={() => setActiveTab('review')} className={`flex-1 py-2 rounded-lg font-bold flex justify-center gap-2 transition whitespace-nowrap px-4 ${activeTab === 'review' ? `${themeClasses.primary} text-white` : 'hover:bg-gray-100 text-gray-600'}`}><FileEdit className="h-5 w-5" /> إدارة المحتوى</button>
-            <button onClick={() => setActiveTab('ideas')} className={`flex-1 py-2 rounded-lg font-bold flex justify-center gap-2 transition whitespace-nowrap px-4 ${activeTab === 'ideas' ? `${themeClasses.primary} text-white` : 'hover:bg-gray-100 text-gray-600'}`}><Lightbulb className="h-5 w-5" /> بنك الأفكار</button>
-            <button onClick={() => setActiveTab('activity')} className={`flex-1 py-2 rounded-lg font-bold flex justify-center gap-2 transition whitespace-nowrap px-4 ${activeTab === 'activity' ? `${themeClasses.primary} text-white` : 'hover:bg-gray-100 text-gray-600'}`}><History className="h-5 w-5" /> سجل النشاط</button>
-            <button onClick={() => setActiveTab('users')} className={`flex-1 py-2 rounded-lg font-bold flex justify-center gap-2 transition whitespace-nowrap px-4 ${activeTab === 'users' ? `${themeClasses.primary} text-white` : 'hover:bg-gray-100 text-gray-600'}`}><Users className="h-5 w-5" /> الموظفين</button>
-            {isAdmin && <button onClick={() => setActiveTab('settings')} className={`flex-1 py-2 rounded-lg font-bold flex justify-center gap-2 transition whitespace-nowrap px-4 ${activeTab === 'settings' ? `${themeClasses.primary} text-white` : 'hover:bg-gray-100 text-gray-600'}`}><Settings className="h-5 w-5" /> الإعدادات</button>}
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl shadow p-4 border flex items-center justify-between">
+        <div>
+          <div className="font-black text-gray-800">لوحة المدير</div>
+          <div className="text-sm font-bold text-gray-500">Agency: {user.agency_id}</div>
         </div>
 
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-blue-200 z-50 flex justify-around p-2 pb-safe shadow-xl">
-            <button onClick={() => setActiveTab('stats')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition ${activeTab === 'stats' ? `${themeClasses.text} ${themeClasses.light}` : 'text-gray-400'}`}>
-                <PieChart size={20} />
-                <span className="text-[10px] font-bold">إحصائيات</span>
-            </button>
-            <button onClick={() => setActiveTab('review')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition ${activeTab === 'review' ? `${themeClasses.text} ${themeClasses.light}` : 'text-gray-400'}`}>
-                <FileEdit size={20} />
-                <span className="text-[10px] font-bold">محتوى</span>
-            </button>
-            <button onClick={() => setActiveTab('users')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition ${activeTab === 'users' ? `${themeClasses.text} ${themeClasses.light}` : 'text-gray-400'}`}>
-                <Users size={20} />
-                <span className="text-[10px] font-bold">موظفين</span>
-            </button>
-            <button onClick={() => setActiveTab('activity')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition ${activeTab === 'activity' ? `${themeClasses.text} ${themeClasses.light}` : 'text-gray-400'}`}>
-                <History size={20} />
-                <span className="text-[10px] font-bold">نشاط</span>
-            </button>
-            {(isAdmin || activeTab === 'settings' || activeTab === 'ideas') && (
-                <button onClick={() => setActiveTab(activeTab === 'settings' ? 'ideas' : 'settings')} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition ${['settings', 'ideas'].includes(activeTab) ? `${themeClasses.text} ${themeClasses.light}` : 'text-gray-400'}`}>
-                    <Menu size={20} />
-                    <span className="text-[10px] font-bold">المزيد</span>
-                </button>
-            )}
-        </div>
-      </>
-      )}
-      
-      {isAdmin && !isPrintMode && activeTab !== 'settings' && activeTab !== 'users' && activeTab !== 'ideas' && (
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-200 no-print flex flex-wrap gap-4 items-center justify-between">
-              <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-sm font-bold text-gray-600 flex items-center gap-1"><Filter size={16}/> تصفية بـ:</span>
-                  <button onClick={() => setQuickDate('today')} className={`px-3 py-1.5 rounded-lg text-sm font-bold transition ${dateFilterMode === 'today' ? `${themeClasses.light} ${themeClasses.text} ${themeClasses.border} border` : 'bg-gray-50 text-gray-600 border border-blue-200 hover:bg-gray-100'}`}>اليوم</button>
-                  <button onClick={() => setQuickDate('month')} className={`px-3 py-1.5 rounded-lg text-sm font-bold transition ${dateFilterMode === 'month' ? `${themeClasses.light} ${themeClasses.text} ${themeClasses.border} border` : 'bg-gray-50 text-gray-600 border border-blue-200 hover:bg-gray-100'}`}>الشهر</button>
-                  <button onClick={() => setQuickDate('year')} className={`px-3 py-1.5 rounded-lg text-sm font-bold transition ${dateFilterMode === 'year' ? `${themeClasses.light} ${themeClasses.text} ${themeClasses.border} border` : 'bg-gray-50 text-gray-600 border border-blue-200 hover:bg-gray-100'}`}>السنة</button>
-                  <button onClick={() => setQuickDate('all')} className={`px-3 py-1.5 rounded-lg text-sm font-bold transition ${dateFilterMode === 'all' ? `${themeClasses.light} ${themeClasses.text} ${themeClasses.border} border` : 'bg-gray-50 text-gray-600 border border-blue-200 hover:bg-gray-100'}`}>الكل</button>
-              </div>
-              <div className="flex items-center gap-2 border-r pr-4 mr-2">
-                  <span className="text-xs font-bold text-gray-500">مخصص:</span>
-                  <input type="date" value={startDate} onChange={e => {setStartDate(e.target.value); setDateFilterMode('custom')}} className="border p-1.5 rounded text-sm outline-none focus:border-blue-500" />
-                  <span className="text-gray-400">-</span>
-                  <input type="date" value={endDate} onChange={e => {setEndDate(e.target.value); setDateFilterMode('custom')}} className="border p-1.5 rounded text-sm outline-none focus:border-blue-500" />
-              </div>
+        <button
+          onClick={logout}
+          className="px-4 py-2 rounded-xl bg-gray-900 text-white font-bold hover:bg-black transition"
+        >
+          تسجيل خروج
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow p-2 border flex gap-2">
+        <button
+          onClick={() => setActiveTab("users")}
+          className={`flex-1 py-2 rounded-xl font-bold transition ${
+            activeTab === "users" ? `${themeClasses.primary} text-white` : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          الموظفين
+          {pendingUsers.length > 0 && (
+            <span className="inline-flex ml-2 text-xs bg-red-600 text-white px-2 py-0.5 rounded-full">
+              {pendingUsers.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab("stats")}
+          className={`flex-1 py-2 rounded-xl font-bold transition ${
+            activeTab === "stats" ? `${themeClasses.primary} text-white` : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          الإحصائيات
+        </button>
+
+        <button
+          onClick={() => setActiveTab("ideas")}
+          className={`flex-1 py-2 rounded-xl font-bold transition ${
+            activeTab === "ideas" ? `${themeClasses.primary} text-white` : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          بنك الأفكار
+        </button>
+
+        <button
+          onClick={() => setActiveTab("activity")}
+          className={`flex-1 py-2 rounded-xl font-bold transition ${
+            activeTab === "activity" ? `${themeClasses.primary} text-white` : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          النشاط
+        </button>
+
+        <button
+          onClick={() => setActiveTab("settings")}
+          className={`flex-1 py-2 rounded-xl font-bold transition ${
+            activeTab === "settings" ? `${themeClasses.primary} text-white` : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          الإعدادات
+        </button>
+      </div>
+
+      {activeTab === "users" && (
+        <div className="bg-white rounded-2xl shadow p-4 border space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="font-black text-gray-800">إدارة الموظفين</div>
+            <input
+              className="border rounded-xl px-3 py-2 font-bold text-sm w-64"
+              placeholder="بحث بالاسم أو الإيميل…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-      )}
 
-      {activeTab === 'stats' && !isPrintMode && (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="إجمالي المقالات" value={quickStats.totalArticles} icon={FileText} colorClass="bg-blue-500 text-blue-600" />
-                <StatCard title="نسبة تحقيق الهدف" value={`${quickStats.achievementRate}%`} icon={Target} colorClass="bg-green-500 text-green-600" />
-                <StatCard title="المتواجدون الآن" value={quickStats.onlineUsersCount} icon={Users} colorClass="bg-orange-500 text-orange-600 cursor-pointer" onClick={() => setShowOnlineModal(true)} />
-                <StatCard title="القسم الأنشط" value={quickStats.topSection.label} subtitle={`${quickStats.topSection.value} مقال`} icon={Trophy} colorClass="bg-purple-500 text-purple-600" />
-            </div>
-            
-            {/* --- NEW: PERFORMANCE TABLE --- */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><Activity className="text-green-600"/> تقرير أداء الموظفين (تقييم النظام)</h3>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-right">
-                        <thead className="bg-gray-50 text-gray-700">
-                            <tr>
-                                <th className="p-3">الموظف</th>
-                                <th className="p-3">القسم</th>
-                                <th className="p-3">الهدف (في الفترة)</th>
-                                <th className="p-3">تم إنجازه</th>
-                                <th className="p-3">نسبة الإنجاز</th>
-                                <th className="p-3">تقييم النظام</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                            {performanceData.map((row, idx) => (
-                                <tr key={idx} className="hover:bg-gray-50">
-                                    <td className="p-3 font-bold">{row.name}</td>
-                                    <td className="p-3">{row.section}</td>
-                                    <td className="p-3 font-mono">{row.target}</td>
-                                    <td className={`p-3 font-bold ${row.achieved >= row.target ? 'text-green-600' : 'text-orange-600'}`}>{row.achieved}</td>
-                                    <td className="p-3">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs font-bold w-8">{row.percent}%</span>
-                                            <div className="w-24 bg-gray-200 rounded-full h-2">
-                                                <div className={`h-2 rounded-full ${row.percent >= 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{width: `${Math.min(row.percent, 100)}%`}}></div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="p-3">
-                                        <RatingDisplay rating={row.autoRating} color="text-yellow-400" />
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SimpleBarChart title="الأداء الأسبوعي" data={weeklyData} colorFrom="#3b82f6" colorTo="#1d4ed8" />
-                <SimpleBarChart title="الأقسام" data={sectionData} colorFrom="#f97316" colorTo="#c2410c" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><Trophy className="text-yellow-500"/> الأكثر إنتاجاً</h3>
-                    <div className="space-y-3">
-                        {topProducers.map((p, i) => (
-                            <div key={i} onClick={() => setDrillDownUser({ user: p.name, type: 'all' })} className="flex justify-between items-center p-2 rounded bg-gray-50 border border-gray-100 cursor-pointer hover:bg-gray-100 transition">
-                                <div className="flex flex-col">
-                                    <span className="font-bold text-sm text-gray-700">#{i+1} {p.name}</span>
-                                </div>
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-bold">{p.value} مقال</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><Star className="text-orange-500"/> الأعلى تقييماً (يدوي)</h3>
-                    <div className="space-y-3">
-                        {topRated.map((p, i) => (
-                            <div key={i} onClick={() => setDrillDownUser({ user: p.name, type: 'rated' })} className="flex justify-between items-center p-2 rounded bg-gray-50 border border-gray-100 cursor-pointer hover:bg-gray-100 transition">
-                                <div className="flex flex-col">
-                                    <span className="font-bold text-sm text-gray-700">#{i+1} {p.name}</span>
-                                </div>
-                                <RatingDisplay rating={Math.round(p.value)} />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {(activeTab === 'review' || (isPrintMode && printTarget === 'review')) && (
-          <div className={`bg-white p-6 rounded-xl shadow-sm border border-blue-200 ${isPrintMode ? 'border-none shadow-none p-0' : ''}`}>
-              {!isPrintMode && (
-              <div className="flex flex-wrap gap-4 mb-4 items-end no-print">
+          {pendingUsers.length > 0 && (
+            <div className="space-y-2">
+              <div className="font-black text-red-700">طلبات انضمام جديدة</div>
+              {pendingUsers.map((u) => (
+                <div key={u.id} className="flex items-center justify-between p-3 border rounded-xl bg-red-50">
                   <div>
-                    <label className="text-xs font-bold text-gray-500 block mb-1">الصحفي</label>
-                    <select value={filterJournalist} onChange={e=>setFilterJournalist(e.target.value)} className="border p-2 rounded min-w-[150px]">
-                        <option value="الكل">الكل</option>
-                        {activeUsers.map(u=><option key={u.id} value={u.name}>{u.name}</option>)}
-                    </select>
+                    <div className="font-black text-gray-800">{u.name}</div>
+                    <div className="text-sm font-bold text-gray-500">{u.username}</div>
                   </div>
-                  <div>
-                     <label className="text-xs font-bold text-gray-500 block mb-1">القسم</label>
-                     <select value={filterSection} onChange={e=>setFilterSection(e.target.value)} className="border p-2 rounded min-w-[150px]">
-                        <option value="الكل">الكل</option>
-                        {safeDepartments.map(d=><option key={d} value={d}>{d}</option>)}
-                    </select>
-                  </div>
-                   <div className="flex gap-2 mt-auto">
-                       <button onClick={() => handleExportCSV()} className="bg-green-600 text-white px-4 py-2 rounded font-bold text-sm flex gap-2 h-[42px] items-center"><FileSpreadsheet size={16}/> Excel</button>
-                       <button onClick={() => handlePrintReport('review')} className="bg-slate-800 text-white px-4 py-2 rounded font-bold text-sm flex gap-2 h-[42px] items-center"><Printer size={16}/> PDF</button>
-                   </div>
-              </div>
-              )}
-              
-              <div className={isPrintMode ? 'block' : 'block'}>
-                  {isPrintMode && <h2 className="text-2xl font-bold mb-4 text-center">تقرير المحتوى ({startDate} إلى {endDate})</h2>}
-                  
-                  {/* MOBILE VIEW (CARDS) FOR ADMIN REVIEW */}
-                  <div className="block md:hidden space-y-4 mb-20">
-                      {reviewArticles.length === 0 ? <div className="text-center text-gray-400 py-10">لا توجد بيانات</div> : 
-                        reviewArticles.map(article => (
-                          <div key={article.id} className="border border-blue-200 rounded-xl p-4 bg-gray-50 shadow-sm relative">
-                              <div className="flex justify-between items-start mb-2 border-b border-gray-100 pb-2">
-                                  <div>
-                                      <p className="font-bold text-sm text-gray-800">{article.journalist_name}</p>
-                                      <p className="text-[10px] text-gray-400 dir-ltr text-right">{users.find(u => u.name === article.journalist_name)?.username || 'user'}</p>
-                                  </div>
-                                  <div className="flex gap-1">
-                                      <button onClick={()=>openReviewModal(article)} title="تقييم المدير" className="text-blue-600 bg-white p-1.5 rounded border border-blue-200 shadow-sm"><Star size={14}/></button>
-                                      <button onClick={()=>openAdminEditContent(article)} title="تعديل المحتوى" className="text-green-600 bg-white p-1.5 rounded border border-blue-200 shadow-sm"><Edit size={14}/></button>
-                                      <button onClick={()=>handleAdminDeleteContent(article.id)} title="حذف نهائي" className="text-red-500 bg-white p-1.5 rounded border border-blue-200 shadow-sm"><Trash2 size={14}/></button>
-                                  </div>
-                              </div>
-                              <h4 className="font-bold text-gray-900 mb-2">{article.headline}</h4>
-                              {article.url && (
-                                  <div className="flex items-center gap-2 mb-2 bg-white p-2 rounded border border-gray-100">
-                                      <LinkIcon size={12} className="text-gray-400 shrink-0" />
-                                      <a href={article.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 truncate dir-ltr flex-1">{article.url}</a>
-                                  </div>
-                              )}
-                              <div className="flex justify-between items-end mt-2 pt-2 border-t border-blue-200 text-xs text-gray-500">
-                                  <div className="flex flex-col">
-                                      <span>نشر: {formatDate(article.date_string)}</span>
-                                      <span className="text-blue-800 font-bold">إضافة: {formatTime(article.timestamp)}</span>
-                                  </div>
-                                  {article.rating > 0 && <RatingDisplay rating={article.rating} />}
-                              </div>
-                              {article.note && <div className="mt-2 text-orange-600 text-xs bg-orange-50 p-2 rounded border border-orange-100 flex gap-1"><MessageSquare size={12}/> {article.note}</div>}
-                          </div>
-                        ))
-                      }
-                  </div>
-
-                  {/* DESKTOP VIEW (TABLE) */}
-                  <div className="hidden md:block">
-                    <table className="w-full text-sm text-right">
-                        <thead className="bg-gray-50 border-b">
-                            <tr>
-                                <th className="p-3">الصحفي</th>
-                                <th className="p-3 w-1/4">المحتوى</th>
-                                <th className="p-3 w-1/4">التفاصيل / ملاحظات</th>
-                                <th className="p-3">الحالة</th>
-                                <th className="p-3">تاريخ النشر (المحدد)</th>
-                                <th className="p-3">توقيت السيستم (الفعلي)</th>
-                                <th className="p-3 no-print">تحكم</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {reviewArticles.length === 0 ? <tr><td colSpan={7} className="p-8 text-center text-gray-400">لا توجد بيانات في هذه الفترة</td></tr> :
-                            reviewArticles.map(article => {
-                                const isDateMismatch = article.date_string !== (article.timestamp ? article.timestamp.split('T')[0] : '');
-                                return (
-                                <tr key={article.id} className="border-b hover:bg-gray-50">
-                                    <td className="p-3">
-                                        <div className="font-bold">{article.journalist_name}</div>
-                                    </td>
-                                    <td className="p-3">
-                                        <div className="font-bold text-gray-800">{article.headline}</div>
-                                        {article.url && (
-                                            <a href={article.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 underline text-xs dir-ltr block mt-1" title={article.url}>
-                                                {article.url.length > 30 ? article.url.substring(0, 30) + '...' : article.url}
-                                            </a>
-                                        )}
-                                    </td>
-                                    <td className="p-3">
-                                        {article.note ? (
-                                            <div className="bg-orange-50 p-2 rounded border border-orange-100 text-xs text-gray-600 whitespace-pre-wrap max-h-20 overflow-y-auto">
-                                                {article.note}
-                                            </div>
-                                        ) : <span className="text-gray-300">-</span>}
-                                    </td>
-                                    <td className="p-3"><StatusBadge status={article.status} /></td>
-                                    <td className="p-3 font-bold">{formatDate(article.date_string)}</td>
-                                    <td className="p-3">
-                                        <div className={`font-mono text-xs dir-ltr text-right ${isDateMismatch ? 'text-orange-700 font-bold bg-orange-100 p-1 rounded w-fit ml-auto' : 'text-blue-800'}`}>
-                                            {formatDate(article.timestamp)} <br/>
-                                            {formatTime(article.timestamp)}
-                                        </div>
-                                    </td>
-                                    <td className="p-3 no-print">
-                                        <div className="flex gap-2">
-                                            <button onClick={()=>openReviewModal(article)} className="text-blue-600 hover:bg-blue-50 p-1.5 rounded border border-transparent hover:border-blue-200 transition" title="تقييم المدير (نجوم)"><Star size={16}/></button>
-                                            <button onClick={()=>openAdminEditContent(article)} className="text-green-600 hover:bg-green-50 p-1.5 rounded border border-transparent hover:border-green-200 transition" title="تعديل المحتوى"><Edit size={16}/></button>
-                                            <button onClick={()=>handleAdminDeleteContent(article.id)} className="text-red-600 hover:bg-red-50 p-1.5 rounded border border-transparent hover:border-red-200 transition" title="حذف نهائي"><Trash2 size={16}/></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )})}
-                        </tbody>
-                    </table>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* ... Users Tab (unchanged) ... */}
-      {activeTab === 'users' && !isPrintMode && (
-        <div className="space-y-6">
-            {pendingUsers.length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-xl">
-                    <h3 className="font-bold text-yellow-800 mb-3">طلبات انضمام جديدة</h3>
-                    {pendingUsers.map(u => (
-                        <div key={u.id} className="flex justify-between items-center bg-white p-3 rounded mb-2 shadow-sm">
-                            <div><span className="font-bold">{u.name}</span> <span className="text-sm text-gray-500">({u.role} - {u.section})</span></div>
-                            <div className="flex gap-2">
-                                <button onClick={()=>handleApprove(u)} className="bg-green-500 text-white px-3 py-1 rounded text-sm font-bold">قبول</button>
-                                <button onClick={()=>handleReject(u.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm font-bold">رفض</button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-                <div className="flex justify-between mb-4">
-                    <input type="text" placeholder="بحث عن موظف..." className="border p-2 rounded w-64" value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} />
-                    <button onClick={handleExportUsersCSV} className={`text-white px-4 py-2 rounded text-sm font-bold ${themeClasses.primary}`}>تصدير الموظفين</button>
-                </div>
-                <table className="w-full text-sm text-right">
-                    <thead className="bg-gray-50"><tr><th className="p-3">الاسم</th><th className="p-3">القسم</th><th className="p-3">الحالة</th><th className="p-3">تحكم</th></tr></thead>
-                    <tbody>
-                        {activeUsers.map(u => (
-                        <tr key={u.id} className="border-b">
-                            <td className="p-3">
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full ${isOnline(u.last_active) ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                                    <div>
-                                        <div className="font-bold">{u.name}</div>
-                                        <div className="text-[10px] text-gray-400 dir-ltr text-right">{u.username}</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="p-3">{u.section}</td>
-                            <td className="p-3">{isOnline(u.last_active) ? <span className="text-green-600 font-bold text-xs">متصل</span> : <span className="text-gray-400 text-xs">غير متصل</span>}</td>
-                            <td className="p-3 flex gap-2">
-                                <button onClick={()=>setEditingUser(u)} className="text-blue-600"><Edit size={16}/></button>
-                                <button onClick={()=>{setResetPassUser(u); setNewPassword('');}} className="text-orange-600"><Lock size={16}/></button>
-                                <button onClick={()=>handleReject(u.id)} className="text-red-600"><Trash2 size={16}/></button>
-                            </td>
-                        </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-      )}
-
-      {/* ... Activity Tab (unchanged) ... */}
-      {(activeTab === 'activity' || (isPrintMode && printTarget === 'activity')) && (
-          <div className="space-y-6">
-             <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-200 mb-4 no-print">
-                <div className="flex flex-wrap gap-4 justify-between items-end">
-                    <div className="flex flex-wrap gap-3 items-end flex-1">
-                         <div>
-                            <label className="text-xs font-bold text-gray-500 mb-1 block">الصحفي</label>
-                            <select value={filterJournalist} onChange={(e) => setFilterJournalist(e.target.value)} className="border rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-blue-800 min-w-[120px]">
-                                <option value="الكل">الكل</option>
-                                {activeUsers.filter(u => u.role !== 'admin').map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
-                            </select>
-                         </div>
-                    </div>
-                    <div className="flex gap-2">
-                        <button onClick={() => handleExportCSV()} className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-sm hover:bg-green-700 h-[40px] mt-auto"><FileSpreadsheet size={16}/> Excel</button>
-                        <button onClick={() => handlePrintReport('activity')} className="bg-slate-800 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-bold shadow-sm hover:bg-slate-700 h-[40px] mt-auto"><Printer size={16}/> PDF</button>
-                    </div>
-                </div>
-            </div>
-
-            <div className={`bg-white p-4 rounded-xl shadow-sm overflow-x-auto ${isPrintMode ? 'border-none shadow-none p-0' : ''}`}>
-                {isPrintMode && <h2 className="text-2xl font-bold mb-4 text-center">تقرير نشاط المستخدمين ({startDate} إلى {endDate})</h2>}
-                <table className="w-full text-sm text-right border-collapse">
-                <thead className="bg-gray-50 border-b border-blue-200 text-gray-700 font-bold">
-                    <tr>
-                        <th className="p-4">الصحفي</th>
-                        <th className="p-4">التاريخ</th>
-                        <th className="p-4">عدد مرات الدخول</th>
-                        <th className="p-4">إجمالي المدة</th>
-                        <th className="p-4">تفاصيل الجلسات (البدء - الانتهاء)</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                    {filteredActivityLogs.length === 0 ? 
-                        <tr><td colSpan={5} className="p-8 text-center text-gray-400">لا يوجد نشاط مسجل في هذه الفترة</td></tr>
-                    : filteredActivityLogs.sort((a,b) => a.date_string.localeCompare(b.date_string)).map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="p-4 font-bold text-gray-900">{log.user_name}</td>
-                        <td className="p-4 text-gray-600">{formatDate(log.date_string)}</td>
-                        <td className="p-4">
-                            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-bold">{log.loginCount} مرة</span>
-                        </td>
-                        <td className="p-4 font-bold text-gray-800">{formatDuration(log.totalDurationMinutes)}</td>
-                        <td className="p-4 text-xs text-gray-500">
-                            <div className="flex flex-col gap-1 max-h-20 overflow-y-auto">
-                                {log.sessions.map((sess, idx) => (
-                                    <span key={idx} className="block whitespace-nowrap dir-ltr text-right">
-                                        {formatTime(sess.start)} - {formatTime(sess.end)}
-                                    </span>
-                                ))}
-                            </div>
-                        </td>
-                    </tr>
-                    ))}
-                </tbody>
-                </table>
-            </div>
-          </div>
-      )}
-
-      {activeTab === 'settings' && isAdmin && !isPrintMode && (
-        <div className="space-y-6">
-             
-             {/* Agency ID Display */}
-             <div className="bg-gradient-to-r from-slate-800 to-slate-700 p-6 rounded-xl shadow-lg text-white">
-                <h3 className="text-lg font-bold mb-2 flex items-center gap-2"><Key className="h-5 w-5 text-yellow-400" /> كود المؤسسة (للموظفين)</h3>
-                <p className="text-sm text-slate-300 mb-4">أرسل هذا الكود للموظفين الجدد ليتمكنوا من الانضمام إلى مؤسستك.</p>
-                <div className="flex items-center gap-2 bg-black/30 p-2 rounded-lg border border-white/10 w-fit">
-                    <code className="font-mono text-xl font-bold tracking-widest px-2">{user.agency_id}</code>
-                    <button onClick={() => copyToClip(String(user.agency_id))} className="p-2 hover:bg-white/10 rounded transition text-yellow-400" title="نسخ الكود">
-                        <Copy size={20} />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleApprove(u)}
+                      className="px-4 py-2 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700"
+                    >
+                      موافقة
                     </button>
-                </div>
-             </div>
-
-             {/* Theme Settings */}
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><Palette className="h-5 w-5 text-purple-600" /> تخصيص ألوان النظام</h3>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    {Object.entries(THEMES).map(([key, t]) => (
-                        <button 
-                            key={key}
-                            onClick={() => { setTheme(key); saveSettings(safeDepartments, announcement, articleStatuses); }}
-                            className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition ${theme === key ? 'border-black bg-gray-50' : 'border-transparent bg-gray-50 hover:bg-gray-100'}`}
-                        >
-                            <div className={`w-8 h-8 rounded-full ${t.primary} shadow-md`}></div>
-                            <span className="text-xs font-bold text-gray-600">{t.name}</span>
-                        </button>
-                    ))}
-                </div>
-             </div>
-
-             {/* CSV Import/Export Section */}
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileUp className="h-5 w-5 text-green-600" /> إدارة البيانات (استيراد/تصدير)</h3>
-                <p className="text-sm text-gray-500 mb-4">يمكنك نقل البيانات من النظام القديم (Excel) أو تصدير نسخة احتياطية.</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Content Import */}
-                    <div className="bg-gray-50 p-4 rounded-xl border border-dashed border-gray-300">
-                        <label className="block text-sm font-bold text-gray-700 mb-2">1. استيراد المحتوى والتقييمات</label>
-                        <p className="text-xs text-gray-400 mb-3">ترتيب الأعمدة (CSV): الاسم، العنوان، المنصة، القسم، الحالة، <span className="text-red-500">التقييم</span>، التاريخ، ...</p>
-                        <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-lg cursor-pointer transition ${isImporting ? 'bg-blue-200 text-gray-500' : 'bg-white border border-blue-200 hover:border-green-500 text-green-700 shadow-sm'}`}>
-                            {isImporting ? 'جاري التحميل...' : <><UploadCloud size={18}/> <span>رفع ملف المحتوى (CSV)</span></>}
-                            <input type="file" accept=".csv" className="hidden" onChange={handleImportContentCSV} disabled={isImporting} />
-                        </label>
-                    </div>
-
-                    {/* Users Import */}
-                    <div className="bg-gray-50 p-4 rounded-xl border border-dashed border-gray-300">
-                        <label className="block text-sm font-bold text-gray-700 mb-2">2. استيراد الموظفين (Users)</label>
-                        <p className="text-xs text-gray-400 mb-3">ترتيب الأعمدة (CSV): الاسم، اسم المستخدم، كلمة المرور، الوظيفة، القسم، التارجت</p>
-                        <label className={`flex items-center justify-center gap-2 w-full py-3 rounded-lg cursor-pointer transition ${isImporting ? 'bg-blue-200 text-gray-500' : 'bg-white border border-blue-200 hover:border-blue-500 text-blue-700 shadow-sm'}`}>
-                            {isImporting ? 'جاري التحميل...' : <><Users size={18}/> <span>رفع ملف الموظفين (CSV)</span></>}
-                            <input type="file" accept=".csv" className="hidden" onChange={handleImportUsersCSV} disabled={isImporting} />
-                        </label>
-                    </div>
-                    
-                    <div className="md:col-span-2 bg-gray-50 p-4 rounded-xl border border-blue-200 flex flex-col justify-center items-center">
-                        <label className="block text-sm font-bold text-gray-700 mb-2">نسخة احتياطية كاملة</label>
-                        <button onClick={() => handleExportCSV()} className={`text-white px-6 py-3 rounded-lg flex items-center justify-center gap-2 text-sm font-bold shadow-md transition w-full md:w-auto ${themeClasses.primary} ${themeClasses.hover}`}>
-                            <Download size={18}/> تحميل كل البيانات (CSV)
-                        </button>
-                    </div>
-                </div>
-             </div>
-
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><ImageIcon className="h-5 w-5 text-indigo-600" /> إعدادات المظهر</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label className="block text-sm font-bold text-gray-600 mb-2">اللوجو</label>
-                        <div className="flex flex-col gap-2">
-                            <label className="flex items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                    <UploadCloud className="w-8 h-8 mb-2 text-gray-500" />
-                                    <p className="mb-2 text-sm text-gray-500"><span className="font-bold">اضغط لرفع صورة</span></p>
-                                    <p className="text-xs text-gray-400">PNG, JPG (MAX. 2MB)</p>
-                                </div>
-                                <input type="file" className="hidden" accept="image/*" onChange={handleLogoUpload} />
-                            </label>
-                            
-                            <input type="text" className="w-full border p-2 rounded-lg text-xs dir-ltr text-gray-400" placeholder="أو ضع رابط مباشر هنا..." value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
-                        </div>
-                    </div>
-                    <div>
-                        <div className="mb-6">
-                            <label className="block text-sm font-bold text-gray-600 mb-2 flex justify-between">
-                                <span>سرعة الشريط (ثواني)</span>
-                                <span className="text-blue-600">{tickerSpeed}s</span>
-                            </label>
-                            <input 
-                                type="range" 
-                                min="10" 
-                                max="100" 
-                                step="5"
-                                className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
-                                value={tickerSpeed} 
-                                onChange={(e) => setTickerSpeed(Number(e.target.value))} 
-                            />
-                        </div>
-                        <div className="mb-6">
-                            <label className="block text-sm font-bold text-gray-600 mb-2 flex justify-between">
-                                <span>حجم خط الشريط (px)</span>
-                                <span className="text-blue-600">{tickerFontSize}px</span>
-                            </label>
-                            <input 
-                                type="range" 
-                                min="12" 
-                                max="48" 
-                                step="2"
-                                className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
-                                value={tickerFontSize} 
-                                onChange={(e) => setTickerFontSize(Number(e.target.value))} 
-                            />
-                        </div>
-                        <div className="mt-4 flex justify-end">
-                            <button 
-                                onClick={() => saveSettings(safeDepartments, announcement, articleStatuses)} 
-                                disabled={savingSettings}
-                                className={`text-white px-6 py-2 rounded-lg font-bold transition shadow-md ${themeClasses.primary} ${themeClasses.hover}`}
-                            >
-                                {savingSettings ? 'جاري الحفظ...' : 'حفظ المظهر'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><Megaphone className="h-5 w-5 text-orange-500" /> شريط التنبيهات</h3>
-                <div className="flex gap-2">
-                    <input type="text" className="flex-1 border p-3 rounded-lg text-lg h-12 outline-none focus:ring-2 focus:ring-orange-500" placeholder="اكتب التنبيه هنا..." value={announcement} onChange={(e) => setAnnouncement(e.target.value)} />
-                    <button onClick={() => saveSettings(safeDepartments, announcement, articleStatuses)} disabled={savingSettings} className="bg-orange-500 text-white px-6 rounded-lg font-bold hover:opacity-90 transition">حفظ الكل</button>
-                </div>
-            </div>
-            
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><LayoutDashboard className="h-5 w-5 text-blue-700" /> إدارة الأقسام</h3>
-                <div className="flex gap-2 mb-4">
-                    <input type="text" className="flex-1 border p-2 rounded-lg" placeholder="اسم القسم الجديد..." value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} />
-                    <button onClick={handleAddDept} disabled={savingSettings} className={`text-white px-4 rounded-lg flex items-center gap-1 ${themeClasses.primary} ${themeClasses.hover}`}><Plus className="h-4 w-4" /> إضافة</button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {safeDepartments.map(dept => (<div key={dept} className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full flex items-center gap-2">{dept}<button onClick={() => handleDeleteDept(dept)} className="text-red-500 hover:text-red-700"><MinusCircle className="h-4 w-4" /></button></div>))}
-                </div>
-            </div>
-             <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><FileText className="h-5 w-5 text-purple-600" /> حالات الأخبار</h3>
-                <div className="flex gap-2 mb-4">
-                    <input type="text" className="flex-1 border p-2 rounded-lg" placeholder="اسم الحالة الجديدة..." value={newStatusName} onChange={(e) => setNewStatusName(e.target.value)} />
-                    <button onClick={handleAddStatus} disabled={savingSettings} className="bg-purple-600 text-white px-4 rounded-lg flex items-center gap-1"><Plus className="h-4 w-4" /> إضافة</button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {articleStatuses.map(status => (<div key={status} className="bg-purple-50 text-purple-800 px-3 py-1 rounded-full flex items-center gap-2 border border-purple-100">{status}<button onClick={() => handleDeleteStatus(status)} className="text-red-500 hover:text-red-700"><MinusCircle className="h-4 w-4" /></button></div>))}
-                </div>
-            </div>
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-200">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><Target className="h-5 w-5 text-green-500" /> تحديث التارجت</h3>
-                <div className="flex gap-3 items-end">
-                    <div className="flex-1">
-                        <label className="text-xs font-bold text-gray-500 block mb-1">القسم</label>
-                        <select className="w-full border p-2 rounded-lg bg-white outline-none" value={targetDept} onChange={(e) => setTargetDept(e.target.value)}>{safeDepartments.map(d => <option key={d} value={d}>{d}</option>)}</select>
-                    </div>
-                    <div className="w-24">
-                        <label className="text-xs font-bold text-gray-500 block mb-1">العدد</label>
-                        <input type="number" min="1" className="w-full border p-2 rounded-lg text-center outline-none" value={targetValue} onChange={(e) => setTargetValue(Number(e.target.value))} />
-                    </div>
-                    <button onClick={handleUpdateDeptTarget} disabled={updatingTarget} className="bg-green-600 text-white px-6 py-2 rounded-lg font-bold h-[42px] hover:bg-green-700 transition">تطبيق</button>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {activeTab === 'ideas' && !isPrintMode && (
-          <div className="space-y-6">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-orange-100 bg-orange-50/50">
-                   <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2"><Lightbulb className="text-orange-500"/> طرح فكرة جديدة</h3>
-                   <div className="space-y-4">
-                      <textarea className="w-full border p-3 rounded-lg h-24 outline-none focus:ring-2 focus:ring-orange-400" placeholder="اكتب الفكرة هنا..." value={ideaText} onChange={e => setIdeaText(e.target.value)} />
-                      <div className="flex gap-4 items-end">
-                          <div className="flex-1">
-                              <label className="block text-xs font-bold text-gray-500 mb-1">توجيه إلى:</label>
-                              <div className="flex gap-2 mb-2">
-                                  <label className="flex items-center gap-1 cursor-pointer"><input type="radio" checked={ideaType === 'section'} onChange={() => setIdeaType('section')} /> قسم</label>
-                                  <label className="flex items-center gap-1 cursor-pointer"><input type="radio" checked={ideaType === 'user'} onChange={() => setIdeaType('user')} /> صحفي</label>
-                              </div>
-                              <select className="w-full border p-2 rounded bg-white outline-none focus:ring-2 focus:ring-orange-400" value={ideaTarget} onChange={e => setIdeaTarget(e.target.value)}>
-                                  <option value="">-- اختر --</option>
-                                  {ideaType === 'section' ? safeDepartments.map(d => <option key={d} value={d}>{d}</option>) : activeUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                              </select>
-                          </div>
-                          <button onClick={handleSendIdea} className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 rounded-lg font-bold shadow-md transition h-fit">إرسال الفكرة</button>
-                      </div>
-                   </div>
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm">
-                  <h3 className="font-bold mb-4">الأفكار المطروحة سابقاً</h3>
-                  <div className="space-y-3">
-                      {sentIdeas.map(idea => (
-                          <div key={idea.id} className="p-3 border rounded-lg bg-gray-50 flex flex-col gap-2">
-                              <div className="flex justify-between items-start">
-                                  <div><p className="font-bold text-gray-800">{idea.text}</p><p className="text-xs text-gray-500">موجهة لـ: {idea.to_section || 'مستخدم محدد'} - {formatDate(idea.timestamp)}</p></div>
-                                  <button onClick={() => { if(window.confirm('حذف؟')) supabase.from('messages').delete().eq('id', idea.id).then(fetchData) }} className="text-red-500 hover:bg-red-50 p-1 rounded transition"><Trash2 size={16}/></button>
-                              </div>
-                              {idea.replies && idea.replies.length > 0 && (<div className="bg-white p-2 rounded border mt-1 max-h-60 overflow-y-auto space-y-2"><p className="text-[10px] text-gray-400 font-bold mb-1">المحادثة:</p>{idea.replies.map((reply, i) => (<div key={i} className={`flex ${reply.sender === user.name ? 'justify-end' : 'justify-start'}`}><div className={`p-2 rounded-lg max-w-[85%] text-xs ${reply.sender === user.name ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-800'}`}><span className="block font-bold text-[9px] mb-0.5 opacity-70">{reply.sender}</span><span>{reply.text}</span></div></div>))}</div>)}
-                              <div className="flex gap-2 mt-1"><input type="text" className="flex-1 border rounded px-2 py-1 text-xs" placeholder="اكتب رداً..." value={expandedIdea === idea.id ? ideaReply : ''} onChange={(e) => {setExpandedIdea(idea.id); setIdeaReply(e.target.value)}} onFocus={() => setExpandedIdea(idea.id)} /><button onClick={() => handleReplyToIdeaAdmin(idea)} className="bg-orange-500 text-white px-3 py-1 rounded text-xs font-bold hover:opacity-90">رد</button></div>
-                          </div>
-                      ))}
-                      {sentIdeas.length === 0 && <div className="text-center text-gray-400 py-10">لا توجد أفكار</div>}
+                    <button
+                      onClick={() => handleReject(u.id)}
+                      className="px-4 py-2 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700"
+                    >
+                      رفض
+                    </button>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <div className="font-black text-gray-800">الموظفين النشطين</div>
+            {activeUsers.map((u) => (
+              <div key={u.id} className="flex items-center justify-between p-3 border rounded-xl">
+                <div>
+                  <div className="font-black text-gray-800">
+                    {u.name} <span className="text-xs font-bold text-gray-500">({u.role})</span>
+                  </div>
+                  <div className="text-sm font-bold text-gray-500">{u.username}</div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditingUser({ ...u })}
+                    className="px-4 py-2 rounded-xl bg-blue-700 text-white font-bold hover:bg-blue-800"
+                  >
+                    تعديل
+                  </button>
+                </div>
               </div>
+            ))}
           </div>
-      )}
 
-      {reviewArticle && (
-        <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl w-full max-w-sm p-6 shadow-2xl animate-bounce-in">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">تقييم: {reviewArticle.headline}</h3>
-                <div className="mb-4">
-                    <label className="block text-sm font-bold text-gray-600 mb-2">التقييم (من 5)</label>
-                    <div className="flex gap-2 justify-center">
-                        {[1, 2, 3, 4, 5].map(star => (
-                            <button key={star} onClick={() => setReviewData({ ...reviewData, rating: star })} className={`transition transform hover:scale-110 ${star <= reviewData.rating ? 'text-yellow-400' : 'text-gray-300'}`}>
-                                <Star size={32} fill={star <= reviewData.rating ? "currentColor" : "none"} />
-                            </button>
-                        ))}
-                    </div>
-                </div>
-                <div className="mb-4">
-                    <label className="block text-sm font-bold text-gray-600 mb-2">ملاحظات</label>
-                    <textarea 
-                        className="w-full border p-2 rounded-lg text-sm" 
-                        rows="3" 
-                        value={reviewData.note} 
-                        onChange={e => setReviewData({ ...reviewData, note: e.target.value })} 
-                        placeholder="أضف ملاحظاتك للصحفي..."
-                    />
-                </div>
-                <div className="flex gap-2">
-                    <button onClick={handleSaveReview} className={`flex-1 ${themeClasses.primary} text-white py-2 rounded-lg font-bold`}>حفظ التقييم</button>
-                    <button onClick={() => setReviewArticle(null)} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg font-bold">إلغاء</button>
-                </div>
+          {editingUser && (
+            <div className="p-4 border rounded-2xl bg-gray-50 space-y-3">
+              <div className="font-black text-gray-800">تعديل المستخدم</div>
+
+              <input
+                className="w-full border rounded-xl px-3 py-2 font-bold"
+                value={editingUser.name || ""}
+                onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                placeholder="الاسم"
+              />
+
+              <input
+                className="w-full border rounded-xl px-3 py-2 font-bold"
+                value={editingUser.section || ""}
+                onChange={(e) => setEditingUser({ ...editingUser, section: e.target.value })}
+                placeholder="القسم"
+              />
+
+              <select
+                className="w-full border rounded-xl px-3 py-2 font-bold"
+                value={editingUser.role || "journalist"}
+                onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+              >
+                <option value="journalist">journalist</option>
+                <option value="admin">admin</option>
+              </select>
+
+              <input
+                type="number"
+                className="w-full border rounded-xl px-3 py-2 font-bold"
+                value={editingUser.daily_target ?? 10}
+                onChange={(e) => setEditingUser({ ...editingUser, daily_target: e.target.value })}
+                placeholder="الهدف اليومي"
+              />
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleUpdateUser}
+                  className="px-4 py-2 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700"
+                >
+                  حفظ
+                </button>
+                <button
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2 rounded-xl bg-gray-700 text-white font-bold hover:bg-gray-800"
+                >
+                  إلغاء
+                </button>
+              </div>
             </div>
+          )}
         </div>
       )}
 
-      {isEditingContent && contentToEdit && (
-        <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl w-full max-w-lg p-6 shadow-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 border-b pb-2">تعديل المحتوى</h3>
-                <div className="space-y-3">
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">العنوان</label>
-                        <input type="text" className="w-full border p-2 rounded" value={contentToEdit.headline} onChange={e => setContentToEdit({ ...contentToEdit, headline: e.target.value })} />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">الرابط</label>
-                        <input type="text" className="w-full border p-2 rounded dir-ltr text-right" value={contentToEdit.url} onChange={e => setContentToEdit({ ...contentToEdit, url: e.target.value })} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">القسم</label>
-                            <select className="w-full border p-2 rounded" value={contentToEdit.section} onChange={e => setContentToEdit({ ...contentToEdit, section: e.target.value })}>
-                                {safeDepartments.map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1">المنصة</label>
-                            <select className="w-full border p-2 rounded" value={contentToEdit.platform} onChange={e => setContentToEdit({ ...contentToEdit, platform: e.target.value })}>
-                                {PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">التاريخ</label>
-                        <input type="date" className="w-full border p-2 rounded" value={contentToEdit.date_string} onChange={e => setContentToEdit({ ...contentToEdit, date_string: e.target.value })} />
-                    </div>
-                </div>
-                <div className="flex gap-2 mt-6">
-                    <button onClick={handleSaveAdminEditContent} className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold">حفظ التعديلات</button>
-                    <button onClick={() => { setIsEditingContent(false); setContentToEdit(null); }} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg font-bold">إلغاء</button>
-                </div>
+      {activeTab === "stats" && (
+        <div className="bg-white rounded-2xl shadow p-4 border space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={() => setQuickDate("today")} className="px-3 py-2 rounded-xl border font-bold">اليوم</button>
+            <button onClick={() => setQuickDate("month")} className="px-3 py-2 rounded-xl border font-bold">الشهر</button>
+            <button onClick={() => setQuickDate("year")} className="px-3 py-2 rounded-xl border font-bold">السنة</button>
+            <button onClick={() => setQuickDate("all")} className="px-3 py-2 rounded-xl border font-bold">الكل</button>
+
+            <div className="ml-auto flex items-center gap-2">
+              <input type="date" className="border rounded-xl px-3 py-2 font-bold" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <input type="date" className="border rounded-xl px-3 py-2 font-bold" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-4 rounded-2xl bg-gray-50 border">
+              <div className="text-sm font-bold text-gray-500">عدد المقالات</div>
+              <div className="text-2xl font-black">{filteredArticles.length}</div>
+            </div>
+            <div className="p-4 rounded-2xl bg-gray-50 border">
+              <div className="text-sm font-bold text-gray-500">عدد الموظفين</div>
+              <div className="text-2xl font-black">{activeUsers.length}</div>
+            </div>
+            <div className="p-4 rounded-2xl bg-gray-50 border">
+              <div className="text-sm font-bold text-gray-500">وضع التاريخ</div>
+              <div className="text-2xl font-black">{dateFilterMode}</div>
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-500 font-bold">
+            (إحصائيات متقدمة موجودة في النسخة القديمة، لكن دي نسخة مستقرة تمنع الأعطال. لو تحب نرجّع الرسوم/التقييمات نضيفها تدريجيًا بعد ما يثبت النظام.)
+          </div>
         </div>
       )}
 
-      {editingUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]">
-            <div className="bg-white p-6 rounded-xl shadow-lg w-96 animate-bounce-in">
-                <h3 className="text-lg font-bold mb-4">تعديل بيانات: {editingUser.name}</h3>
-                <div className="space-y-3">
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">الاسم</label>
-                        <input className="w-full border p-2 rounded text-sm" value={editingUser.name} onChange={e=>setEditingUser({...editingUser, name: e.target.value})} />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">الوظيفة</label>
-                        <select className="w-full border p-2 rounded text-sm" value={editingUser.role} onChange={e=>setEditingUser({...editingUser, role: e.target.value})}>
-                            <option value="journalist">صحفي</option>
-                            <option value="editor">رئيس قسم</option>
-                            <option value="managing_editor">مدير تحرير</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">القسم</label>
-                        <select className="w-full border p-2 rounded text-sm" value={editingUser.section} onChange={e=>setEditingUser({...editingUser, section: e.target.value})}>
-                            {safeDepartments.map(d=><option key={d} value={d}>{d}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 mb-1">التارجت اليومي</label>
-                        <input type="number" className="w-full border p-2 rounded text-sm" value={editingUser.daily_target} onChange={e=>setEditingUser({...editingUser, daily_target: e.target.value})} />
-                    </div>
-                    <div className="flex gap-2 mt-4">
-                        <button onClick={handleUpdateUser} className={`flex-1 text-white py-2 rounded text-sm font-bold ${themeClasses.primary}`}>حفظ</button>
-                        <button onClick={()=>setEditingUser(null)} className="flex-1 bg-gray-100 text-gray-600 py-2 rounded text-sm font-bold">إلغاء</button>
-                    </div>
+      {activeTab === "ideas" && (
+        <div className="bg-white rounded-2xl shadow p-4 border space-y-3">
+          <div className="font-black text-gray-800">بنك الأفكار</div>
+
+          {safeIdeas.length === 0 ? (
+            <div className="font-bold text-gray-600">لا توجد أفكار مرسلة.</div>
+          ) : (
+            safeIdeas.map((idea) => (
+              <div key={idea.id} className="border rounded-2xl p-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-black text-gray-800">{idea.title || "فكرة"}</div>
+                  <button
+                    className="text-sm font-bold text-blue-700"
+                    onClick={() => setExpandedIdea(expandedIdea === idea.id ? null : idea.id)}
+                  >
+                    {expandedIdea === idea.id ? "إغلاق" : "عرض"}
+                  </button>
                 </div>
-            </div>
+                {expandedIdea === idea.id && (
+                  <div className="text-sm font-bold text-gray-600 mt-2">
+                    {idea.content || idea.text || "—"}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       )}
 
-      {resetPassUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[9999]">
-            <div className="bg-white p-6 rounded-xl shadow-lg w-96 animate-bounce-in">
-                <h3 className="text-lg font-bold mb-4">تغيير كلمة المرور: {resetPassUser.name}</h3>
-                <input type="password" className="w-full border p-2 rounded mb-4 text-sm" placeholder="كلمة المرور الجديدة" value={newPassword} onChange={e=>setNewPassword(e.target.value)} />
-                <div className="flex gap-2">
-                    <button onClick={handleResetPassword} className="flex-1 bg-orange-600 text-white py-2 rounded text-sm font-bold">تغيير</button>
-                    <button onClick={()=>{setResetPassUser(null); setNewPassword('');}} className="flex-1 bg-gray-100 text-gray-600 py-2 rounded text-sm font-bold">إلغاء</button>
-                </div>
-            </div>
+      {activeTab === "activity" && (
+        <div className="bg-white rounded-2xl shadow p-4 border space-y-3">
+          <div className="font-black text-gray-800">سجل النشاط</div>
+          {safeLogs.length === 0 ? (
+            <div className="font-bold text-gray-600">لا يوجد نشاط مسجل.</div>
+          ) : (
+            safeLogs.map((log) => (
+              <div key={log.id} className="border rounded-2xl p-3">
+                <div className="font-black text-gray-800">{log.user_name || "—"}</div>
+                <div className="text-sm font-bold text-gray-500">{log.date_string || ""}</div>
+              </div>
+            ))
+          )}
         </div>
       )}
 
-      {showOnlineModal && (
-        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl w-full max-w-sm p-6 shadow-2xl animate-bounce-in">
-                <div className="flex justify-between items-center mb-4 border-b pb-2">
-                    <h3 className="text-lg font-bold text-gray-800">المتواجدون الآن</h3>
-                    <button onClick={() => setShowOnlineModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
-                </div>
-                <div className="max-h-[300px] overflow-y-auto space-y-2">
-                    {quickStats.onlineUsers.length === 0 && <p className="text-center text-gray-400 py-4">لا يوجد مستخدمين متصلين حالياً</p>}
-                    {quickStats.onlineUsers.map(u => (
-                        <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded transition">
-                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                            <div>
-                                <p className="font-bold text-sm text-gray-800">{u.name}</p>
-                                <p className="text-xs text-gray-500">{u.section}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+      {activeTab === "settings" && (
+        <div className="bg-white rounded-2xl shadow p-4 border space-y-4">
+          <div className="font-black text-gray-800">الإعدادات</div>
+
+          <div className="space-y-2">
+            <div className="font-bold text-gray-700">الإعلان</div>
+            <textarea
+              className="w-full border rounded-2xl p-3 font-bold"
+              rows={3}
+              value={announcement || ""}
+              onChange={(e) => setAnnouncement(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="font-bold text-gray-700">الأقسام</div>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 border rounded-xl px-3 py-2 font-bold"
+                placeholder="قسم جديد"
+                value={newDeptName}
+                onChange={(e) => setNewDeptName(e.target.value)}
+              />
+              <button
+                className="px-4 py-2 rounded-xl bg-gray-900 text-white font-bold"
+                onClick={() => {
+                  const name = (newDeptName || "").trim();
+                  if (!name) return;
+                  if (safeDepartments.includes(name)) return;
+                  setDepartments([...safeDepartments, name]);
+                  setNewDeptName("");
+                }}
+              >
+                إضافة
+              </button>
             </div>
+
+            <div className="flex flex-wrap gap-2">
+              {safeDepartments.map((d) => (
+                <span key={d} className="px-3 py-1 rounded-full bg-gray-100 border font-bold text-sm">
+                  {d}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="font-bold text-gray-700">حالات المقالات</div>
+            <div className="flex gap-2">
+              <input
+                className="flex-1 border rounded-xl px-3 py-2 font-bold"
+                placeholder="حالة جديدة"
+                value={newStatusName}
+                onChange={(e) => setNewStatusName(e.target.value)}
+              />
+              <button
+                className="px-4 py-2 rounded-xl bg-gray-900 text-white font-bold"
+                onClick={() => {
+                  const name = (newStatusName || "").trim();
+                  if (!name) return;
+                  const list = Array.isArray(articleStatuses) ? articleStatuses : [];
+                  if (list.includes(name)) return;
+                  setArticleStatuses([...list, name]);
+                  setNewStatusName("");
+                }}
+              >
+                إضافة
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {(Array.isArray(articleStatuses) ? articleStatuses : []).map((s) => (
+                <span key={s} className="px-3 py-1 rounded-full bg-gray-100 border font-bold text-sm">
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="font-bold text-gray-700">اللوجو</div>
+            <input type="file" accept="image/*" onChange={handleLogoUpload} />
+            {logoUrl && (
+              <img src={logoUrl} alt="logo" className="h-16 rounded-xl border" />
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <div className="font-bold text-gray-700">سرعة الشريط</div>
+              <input
+                type="number"
+                className="w-full border rounded-xl px-3 py-2 font-bold"
+                value={tickerSpeed ?? 50}
+                onChange={(e) => setTickerSpeed(Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <div className="font-bold text-gray-700">حجم الخط</div>
+              <input
+                type="number"
+                className="w-full border rounded-xl px-3 py-2 font-bold"
+                value={tickerFontSize ?? 16}
+                onChange={(e) => setTickerFontSize(Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <div className="font-bold text-gray-700">الثيم</div>
+              <input
+                className="w-full border rounded-xl px-3 py-2 font-bold"
+                value={theme || ""}
+                onChange={(e) => setTheme(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <button
+            disabled={savingSettings}
+            className="w-full px-4 py-3 rounded-2xl bg-blue-800 text-white font-black hover:bg-blue-900 disabled:opacity-60"
+            onClick={() => saveSettings(
+              safeDepartments,
+              announcement || "",
+              Array.isArray(articleStatuses) ? articleStatuses : []
+            )}
+          >
+            {savingSettings ? "جاري الحفظ..." : "حفظ الإعدادات"}
+          </button>
+
+          {!isAdmin && (
+            <div className="text-sm font-bold text-red-600">
+              تنبيه: حسابك ليس Admin. لن تستطيع اعتماد الموظفين.
+            </div>
+          )}
         </div>
       )}
-
     </div>
   );
 }
-
 // ==========================================
 // 4. Auth Screen (SaaS Edition) - AUTO LOGIN + SAFE UPSERT
 // ==========================================
