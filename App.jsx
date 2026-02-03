@@ -1376,42 +1376,79 @@ function AdminDashboard({ user, departments, setDepartments, announcement, setAn
   const topRated = getTopRated();
   const quickStats = getQuickStats();
 
-  const fetchData = async () => {
+  const notifiedRef = useRef(false);
+
+const fetchData = async () => {
   try {
-    const { data: uData } = await supabase
-      .from('users')
-      .select('*')
-      .eq('agency_id', user.agency_id);
+    // 1) Agency
+    const { data: aData, error: aErr } = await supabase
+      .from("agencies")
+      .select("*")
+      .eq("id", user.agency_id)
+      .single();
+    if (aErr) throw aErr;
+    setAgency(aData);
 
-    if (uData) setUsers(uData);
+    // 2) Users
+    const { data: uData, error: uErr } = await supabase
+      .from("users")
+      .select("*")
+      .eq("agency_id", user.agency_id);
+    if (uErr) throw uErr;
 
-    const { data: aData } = await supabase
-      .from('daily_production')
-      .select('*')
-      .eq('agency_id', user.agency_id);
+    const safeUsers = Array.isArray(uData) ? uData : [];
+    setUsers(safeUsers);
 
-    if (aData) setArticles(aData.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    const pending = safeUsers.filter((u) => u.approved === false);
+    setPendingUsers(pending);
 
-    const { data: mData } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('agency_id', user.agency_id)
-      .eq('priority', 'idea');
+    // 3) Messages
+    const { data: mData, error: mErr } = await supabase
+      .from("management_messages")
+      .select("*")
+      .eq("agency_id", user.agency_id)
+      .order("created_at", { ascending: false });
+    if (mErr) throw mErr;
+    setMessages(Array.isArray(mData) ? mData : []);
 
-    if (mData) setSentIdeas(mData);
+    // 4) Settings
+    const { data: sData, error: sErr } = await supabase
+      .from("agency_settings")
+      .select("*")
+      .eq("agency_id", user.agency_id)
+      .maybeSingle();
+    if (sErr) throw sErr;
+    if (sData) setSettings(sData);
 
-    const { data: actData } = await supabase
-      .from('activity_logs')
-      .select('*')
-      .eq('agency_id', user.agency_id);
-
-    if (actData) setActivityLogs(actData);
-
+    // 5) Paper Plans
+    const { data: pData, error: pErr } = await supabase
+      .from("paper_plans")
+      .select("*")
+      .eq("agency_id", user.agency_id)
+      .order("date", { ascending: false });
+    if (pErr) throw pErr;
+    setPaperPlans(Array.isArray(pData) ? pData : []);
   } catch (e) {
-    console.error("Data fetch failed", e);
+    console.error(e);
   }
 };
- 
+
+// تحميل البيانات أول مرة + تحديث دوري (مستقر)
+useEffect(() => {
+  fetchData();
+  const i = setInterval(fetchData, 8000);
+  return () => clearInterval(i);
+}, [user.agency_id]);
+
+// إشعار الأدمن عند وصول طلبات انضمام (مرة واحدة)
+useEffect(() => {
+  if (pendingUsers.length > 0 && !notifiedRef.current) {
+    alert(`يوجد ${pendingUsers.length} طلب(ات) انضمام جديدة`);
+    notifiedRef.current = true;
+  }
+  if (pendingUsers.length === 0) {
+    notifiedRef.current = false;
+  }
 }, [pendingUsers.length]);
 
         const { data: aData } = await supabase.from('daily_production').select('*').eq('agency_id', user.agency_id);
