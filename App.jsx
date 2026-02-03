@@ -1141,7 +1141,7 @@ function JournalistDashboard({ user, departments, articleStatuses, theme }) {
 // 5. Admin Dashboard 
 // ==========================================
 function AdminDashboard({ user, departments, setDepartments, announcement, setAnnouncement, articleStatuses, setArticleStatuses, logoUrl, setLogoUrl, tickerSpeed, setTickerSpeed, tickerFontSize, setTickerFontSize, theme, setTheme }) {
-  const [notifiedRef] = useRef(false);
+  const notifiedRef = useRef(false);
   const [users, setUsers] = useState([]);
   const [articles, setArticles] = useState([]);
   const [activeTab, setActiveTab] = useState('stats');
@@ -1377,14 +1377,41 @@ function AdminDashboard({ user, departments, setDepartments, announcement, setAn
   const quickStats = getQuickStats();
 
   const fetchData = async () => {
-    try {
-        const { data: uData } = await supabase.from('users').select('*').eq('agency_id', user.agency_id);
-        if(uData) setUsers(uData);
-      useEffect(() => {
-  if (!notifiedRef.current && pendingUsers.length > 0) {
-    notifiedRef.current = true;
-    alert(`لديك ${pendingUsers.length} طلب/طلبات انضمام جديدة`);
+  try {
+    const { data: uData } = await supabase
+      .from('users')
+      .select('*')
+      .eq('agency_id', user.agency_id);
+
+    if (uData) setUsers(uData);
+
+    const { data: aData } = await supabase
+      .from('daily_production')
+      .select('*')
+      .eq('agency_id', user.agency_id);
+
+    if (aData) setArticles(aData.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+
+    const { data: mData } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('agency_id', user.agency_id)
+      .eq('priority', 'idea');
+
+    if (mData) setSentIdeas(mData);
+
+    const { data: actData } = await supabase
+      .from('activity_logs')
+      .select('*')
+      .eq('agency_id', user.agency_id);
+
+    if (actData) setActivityLogs(actData);
+
+  } catch (e) {
+    console.error("Data fetch failed", e);
   }
+};
+ 
 }, [pendingUsers.length]);
 
         const { data: aData } = await supabase.from('daily_production').select('*').eq('agency_id', user.agency_id);
