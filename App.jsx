@@ -1141,6 +1141,7 @@ function JournalistDashboard({ user, departments, articleStatuses, theme }) {
 // 5. Admin Dashboard 
 // ==========================================
 function AdminDashboard({ user, departments, setDepartments, announcement, setAnnouncement, articleStatuses, setArticleStatuses, logoUrl, setLogoUrl, tickerSpeed, setTickerSpeed, tickerFontSize, setTickerFontSize, theme, setTheme }) {
+  const [notifiedRef] = useRef(false);
   const [users, setUsers] = useState([]);
   const [articles, setArticles] = useState([]);
   const [activeTab, setActiveTab] = useState('stats');
@@ -1379,6 +1380,12 @@ function AdminDashboard({ user, departments, setDepartments, announcement, setAn
     try {
         const { data: uData } = await supabase.from('users').select('*').eq('agency_id', user.agency_id);
         if(uData) setUsers(uData);
+      useEffect(() => {
+  if (!notifiedRef.current && pendingUsers.length > 0) {
+    notifiedRef.current = true;
+    alert(`لديك ${pendingUsers.length} طلب/طلبات انضمام جديدة`);
+  }
+}, [pendingUsers.length]);
 
         const { data: aData } = await supabase.from('daily_production').select('*').eq('agency_id', user.agency_id);
         if(aData) setArticles(aData.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
